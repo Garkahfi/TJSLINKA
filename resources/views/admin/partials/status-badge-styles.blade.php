@@ -1,0 +1,3 @@
+<style>
+.submission-status-badge{display:inline-flex;min-width:140px;height:32px;box-sizing:border-box;align-items:center;justify-content:space-between;gap:12px;border-radius:999px;background:#f1f1f1;padding:4px 10px 4px 13px;color:#111;box-shadow:0 2px 5px rgba(0,0,0,.35);font:500 16px/1 Poppins,sans-serif;text-transform:none;white-space:nowrap}.submission-status-badge svg{width:23px;height:23px;fill:none;stroke:#111;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}@media(max-width:560px){.submission-status-badge{min-width:118px;height:29px;font-size:14px}.submission-status-badge svg{width:20px;height:20px}}
+</style>

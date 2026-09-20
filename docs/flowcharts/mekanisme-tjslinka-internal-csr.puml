@@ -1,0 +1,228 @@
+@startuml
+title Mekanisme Program TJSL Internal dan Bantuan CSR - TJSLINKA
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 8
+skinparam ranksep 12
+skinparam padding 4
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ArrowColor #0F172A
+skinparam ArrowThickness 1
+skinparam swimlaneWidth 225
+skinparam swimlaneBorderColor #94A3B8
+skinparam swimlaneTitleBackgroundColor #E2E8F0
+skinparam swimlaneTitleFontColor #0F172A
+skinparam activity {
+  BackgroundColor #F8FAFC
+  BorderColor #0F172A
+  FontColor #0F172A
+  DiamondBackgroundColor #FEF3C7
+  DiamondBorderColor #B45309
+  StartColor #16A34A
+  EndColor #DC2626
+}
+
+|Admin|
+start
+:Login ke area Admin;
+
+|Sistem|
+:Validasi akun aktif,\nkredensial, dan role admin;
+
+while (Login belum valid?) is (Ya)
+  :Tampilkan pesan kesalahan;
+
+  |Admin|
+  :Masukkan ulang username\ndan password;
+
+  |Sistem|
+  :Validasi ulang;
+endwhile (Tidak)
+
+|Admin|
+:Pilih jenis pengajuan;
+
+if (Jenis pengajuan?) then (Program Internal)
+  :Pilih jenis kerja sama\nPKS atau NON-PKS;
+
+  if (Jenis kerja sama?) then (PKS)
+    :Isi data Program Internal\ndan unggah dokumen A-E;
+  else (NON-PKS)
+    :Isi data Program Internal\ndan unggah dokumen A-B;
+  endif
+else (Bantuan CSR)
+  :Isi data Bantuan CSR,\ntarget, rincian, foto,\ndan dokumen A-B;
+endif
+
+if (Pilihan penyimpanan?) then (Simpan draft)
+  |Sistem|
+  :Simpan data dengan\nstatus draft;
+  :Catat status log;
+
+  |Admin|
+  :Lengkapi atau perbaiki draft;
+else (Ajukan)
+endif
+
+repeat
+  |Admin|
+  :Klik Simpan dan Ajukan;
+
+  |Sistem|
+  :Validasi data, file,\ndan dokumen wajib;
+
+  if (Pengajuan valid?) then (Tidak)
+    :Pertahankan status draft;
+    :Tampilkan bagian yang\nharus diperbaiki;
+
+    |Admin|
+    :Perbaiki data atau dokumen;
+  endif
+repeat while (Pengajuan belum valid?) is (Ya)
+->Tidak;
+
+|Sistem|
+:Set status pending_fase1;
+:Simpan waktu pengajuan;
+:Catat status log;
+:Kirim notifikasi in-app kepada\nseluruh Super Admin aktif;
+
+|Admin|
+if (Batalkan sebelum direview?) then (Ya)
+  :Klik Batalkan Pengajuan;
+
+  |Sistem|
+  :Kembalikan status ke draft;
+  :Kosongkan waktu pengajuan;
+  :Catat pembatalan;
+
+  |Admin|
+  :Perbaiki dan ajukan kembali;
+
+  |Sistem|
+  :Validasi dokumen wajib;
+  :Set kembali ke pending_fase1;
+  :Catat status log dan\nkirim notifikasi in-app;
+else (Tidak)
+endif
+
+|Super Admin|
+:Buka daftar pengajuan\npending_fase1;
+:Periksa data dan\ndokumen awal;
+note right
+  Tampilan Super Admin bersifat read-only.
+  Super Admin tidak dapat mengedit, mengunggah,
+  mengganti, atau menghapus konten pengajuan.
+  Aksi yang tersedia hanya Setujui atau Tolak;
+  penolakan wajib disertai alasan.
+end note
+
+if (Pengajuan layak?) then (Tidak)
+  :Masukkan alasan penolakan\nyang wajib diisi;
+
+  |Sistem|
+  :Set status rejected_fase1;
+  :Simpan reviewer, waktu,\ndan alasan penolakan;
+  :Catat status log;
+  :Kirim notifikasi in-app\nkepada Admin pembuat;
+
+  |Admin|
+  :Menerima hasil penolakan;
+  note right
+    Penolakan fase pertama
+    mengakhiri alur pada
+    implementasi saat ini.
+  end note
+  stop
+else (Ya)
+  |Super Admin|
+  :Setujui dokumen awal;
+
+  |Sistem|
+  :Pastikan dokumen wajib lengkap;
+  :Set status approved_fase1;
+  :Simpan reviewer dan waktu;
+  :Catat status log;
+  :Kirim notifikasi in-app\nkepada Admin pembuat;
+  :Tampilkan data pada monitoring;
+endif
+
+repeat
+  |Admin|
+  :Buka halaman BAST;
+  :Unggah atau perbaiki\ndokumen F / BAST;
+  :Tambahkan dokumentasi\nsesuai form;
+  :Klik Ajukan BAST;
+
+  |Sistem|
+  :Validasi kepemilikan, status,\ntipe, ukuran, dan file BAST;
+
+  if (BAST valid?) then (Tidak)
+    :Tolak request dan tampilkan\npesan kesalahan;
+    :Pertahankan status\napproved_fase1;
+
+    |Admin|
+    :Perbaiki file atau input;
+  else (Ya)
+    |Sistem|
+    :Ganti BAST lama dan\nsimpan foto baru;
+    :Set status pending_fase2;
+    :Catat status log;
+    :Kirim notifikasi in-app kepada\nseluruh Super Admin aktif;
+
+    |Super Admin|
+    :Periksa BAST dan\ndokumentasi pelaksanaan;
+    note right
+      BAST dikelola dan diunggah oleh Admin.
+      Tampilan Super Admin bersifat read-only:
+      tidak dapat mengedit, mengunggah, mengganti,
+      atau menghapus BAST maupun dokumentasi.
+      Aksi hanya Setujui atau Tolak;
+      penolakan wajib disertai alasan.
+    end note
+
+    if (BAST layak?) then (Tidak)
+      :Masukkan alasan penolakan\nyang wajib diisi;
+
+      |Sistem|
+      :Kembalikan status ke\napproved_fase1;
+      :Simpan reviewer, waktu,\ndan alasan penolakan;
+      :Catat status log;
+      :Kirim notifikasi in-app\nkepada Admin pembuat;
+
+      |Admin|
+      :Siapkan perbaikan BAST;
+      note right
+        Dokumen awal tidak
+        diajukan ulang.
+      end note
+    else (Ya)
+      |Super Admin|
+      :Setujui BAST;
+
+      |Sistem|
+      :Pastikan dokumen BAST tersedia;
+      :Set status completed;
+      :Simpan reviewer dan waktu;
+      :Catat status log;
+      :Kirim notifikasi in-app\nkepada Admin pembuat;
+      :Perbarui hasil monitoring;
+    endif
+  endif
+repeat while (Status belum completed?) is (Ya)
+->Tidak;
+
+|Admin|
+:Program Internal atau\nBantuan CSR selesai;
+stop
+
+legend bottom
+  Ruang lingkup diagram:
+  - Program TJSL Internal PKS/NON-PKS
+  - Bantuan CSR
+  - Program Eksternal ditunda dan tidak digambarkan
+endlegend
+
+@enduml

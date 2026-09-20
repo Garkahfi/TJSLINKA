@@ -1,0 +1,221 @@
+@startuml
+  title Admin Login + Pengajuan Bantuan CSR
+
+  skinparam shadowing false
+  skinparam linetype ortho
+  skinparam nodesep 6
+  skinparam ranksep 10
+  skinparam padding 3
+  skinparam defaultFontName Arial
+  skinparam defaultFontSize 11
+  skinparam ArrowColor #0F172A
+  skinparam ArrowThickness 1
+  skinparam swimlaneWidth 210
+  skinparam swimlaneBorderColor #94A3B8
+  skinparam swimlaneTitleBackgroundColor #E2E8F0
+  skinparam swimlaneTitleFontColor #0F172A
+  skinparam activity {
+    BackgroundColor #F8FAFC
+    BorderColor #0F172A
+    FontColor #0F172A
+    DiamondBackgroundColor #FEF3C7
+    DiamondBorderColor #B45309
+    StartColor #16A34A
+    EndColor #DC2626
+  }
+
+  |Admin|
+  start
+  :Buka /admin/login;
+
+  repeat
+    :Masukkan username\n dan password;
+
+    |Sistem|
+    :Validasi guard admin,\n akun aktif, dan role admin;
+
+    if (Login valid?) then (Tidak)
+      :Tampilkan pesan kesalahan;
+    endif
+
+    |Admin|
+  repeat while (Login belum valid?) is (Ya)
+
+  |Sistem|
+  :Regenerasi sesi;
+  :Redirect ke /admin/home;
+
+  |Admin|
+  :Buka Overview Bantuan CSR;
+  :Klik "Buat Bantuan CSR";
+  :Isi data utama dan pilar;
+  :Isi anggaran, target, rincian,\n dan foto opsional;
+  :Unggah dokumen A dan B;
+
+  if (Pilihan penyimpanan?) then (Draft)
+    |Sistem|
+    :Validasi dan simpan\n status draft;
+    :Catat status log;
+
+    |Admin|
+    :Buka dan lengkapi draft;
+  else (Ajukan)
+  endif
+
+  repeat
+    |Admin|
+    :Klik "Simpan dan Ajukan";
+
+    |Sistem|
+    :Validasi data, file,\n serta dokumen A dan B;
+
+    if (Pengajuan belum valid?) then (Ya)
+      :Status tetap draft;
+      :Tampilkan bagian\n yang harus diperbaiki;
+
+      |Admin|
+      :Perbaiki data atau file;
+    endif
+  repeat while (Pengajuan belum valid?) is (Ya)
+
+  |Sistem|
+  :Set status pending_fase1;
+  :Isi submitted_at;
+  :Catat status log;
+  :Kirim notifikasi\n ke Super Admin;
+
+  |Admin|
+  if (Batalkan sebelum direview?) then (Ya)
+    :Klik "Batalkan Pengajuan";
+
+    |Sistem|
+    :Kembalikan status ke draft;
+    :Kosongkan submitted_at;
+    :Catat pembatalan;
+
+    |Admin|
+    :Edit dan ajukan kembali;
+
+    |Sistem|
+    :Validasi dokumen A dan B;
+    :Set status pending_fase1;
+    :Kirim notifikasi\n ke Super Admin;
+  else (Tidak)
+  endif
+
+  |Super Admin|
+  :Buka Status Bantuan CSR;
+  :Periksa data, dokumen A-B,\n target, rincian, dan foto;
+  note right
+    Tampilan Super Admin read-only.
+    Tidak tersedia aksi edit, unggah,
+    ganti, atau hapus konten.
+    Super Admin hanya dapat
+    menyetujui atau menolak.
+  end note
+
+  if (Bantuan layak?) then (Tidak)
+    :Klik "Tolak Bantuan CSR";
+    :Isi alasan penolakan wajib\n 5 sampai 2.000 karakter;
+
+    |Sistem|
+    :Set status rejected_fase1;
+    :Simpan reviewer, waktu,\n dan alasan penolakan;
+    :Catat status log;
+    :Kirim notifikasi ke Admin;
+    :Tutup alur pengajuan;\n BAST tidak dapat diakses;
+
+    |Admin|
+    :Baca alasan penolakan;
+    :Pengajuan berakhir;\n tidak dapat diedit atau diajukan ulang;
+    stop
+  else (Ya)
+    :Klik "Setujui Dokumen Awal";
+
+    |Sistem|
+    :Pastikan dokumen A-B lengkap;
+    :Set status approved_fase1;
+    :Simpan reviewer dan waktu;
+    :Catat status log;
+    :Kirim notifikasi ke Admin;
+    :Tampilkan CSR di overview;\n kolom F = On Progress;
+  endif
+
+  |Admin|
+  :[ADMIN - PENGUNGGAH]\nMenerima persetujuan dokumen awal;
+  :[ADMIN - PENGUNGGAH]\nDapat mengakses halaman BAST;
+
+  repeat
+    |Admin|
+    :[ADMIN - PENGUNGGAH]\nBuka halaman BAST;
+    :[ADMIN - PENGUNGGAH]\nUnggah atau perbaiki\n dokumen F / BAST;
+    :[ADMIN - PENGUNGGAH]\nOpsional: unggah dokumentasi\n dan keterangan tambahan;
+    :[ADMIN - PENGUNGGAH]\nKlik "Simpan dan Ajukan BAST";
+
+    |Sistem|
+    :[SISTEM - VALIDATOR]\nPeriksa hak akses, status,\n tipe, ukuran, dan kelengkapan file;
+
+    if (VALIDASI SISTEM:\nUpload BAST valid?) then (TIDAK)
+      |Sistem|
+      :[SISTEM - VALIDATOR]\nTolak request dan tampilkan\n pesan kesalahan;
+      :Status tetap approved_fase1;
+
+      |Admin|
+      :[ADMIN - PENGUNGGAH]\nPerbaiki file atau input BAST\n sesuai pesan validasi;
+    else (YA)
+      |Sistem|
+      :[SISTEM - PEMROSES]\nSimpan atau ganti file BAST\n dan dokumentasi tambahan;
+      :[SISTEM - PEMROSES]\nSet status pending_fase2;
+      :[SISTEM - PEMROSES]\nCatat status log;
+      :[SISTEM - PEMROSES]\nKirim notifikasi ke Super Admin;
+
+      |Super Admin|
+      :[SUPER ADMIN - REVIEWER]\nTerima notifikasi dan buka\n pengajuan pending_fase2;
+      :[SUPER ADMIN - REVIEWER]\nPeriksa isi BAST dan\n dokumentasi tambahan;
+      note right
+        BAST dikelola dan diunggah oleh Admin.
+        Tampilan Super Admin read-only;
+        aksi hanya Setujui atau Tolak.
+        Penolakan wajib disertai alasan.
+      end note
+
+      if (KEPUTUSAN SUPER ADMIN:\nBAST layak?) then (TIDAK - TOLAK)
+        |Super Admin|
+        :[SUPER ADMIN - REVIEWER]\nKlik "Tolak BAST";
+        :[SUPER ADMIN - REVIEWER]\nIsi alasan penolakan wajib\n 5 sampai 2.000 karakter;
+        :[SUPER ADMIN - REVIEWER]\nKlik "Konfirmasi Penolakan";
+
+        |Sistem|
+        :[SISTEM - PEMROSES]\nKembalikan status\n ke approved_fase1;
+        :[SISTEM - PEMROSES]\nSimpan reviewer, waktu,\n dan alasan penolakan;
+        :[SISTEM - PEMROSES]\nCatat status log;
+        :[SISTEM - PEMROSES]\nKirim notifikasi ke Admin;
+        :Kolom F tetap On Progress;
+
+        |Admin|
+        :[ADMIN - PENGUNGGAH]\nBaca alasan dan siapkan\n perbaikan BAST saja;
+        :Dokumen A-B tidak diulang;
+      else (YA - SETUJUI)
+        |Super Admin|
+        :[SUPER ADMIN - REVIEWER]\nKlik "Setujui BAST";
+
+        |Sistem|
+        :[SISTEM - PEMROSES]\nPastikan dokumen BAST tersedia;
+        :[SISTEM - PEMROSES]\nSet status completed;
+        :[SISTEM - PEMROSES]\nSimpan reviewer dan waktu;
+        :[SISTEM - PEMROSES]\nCatat status log;
+        :[SISTEM - PEMROSES]\nKirim notifikasi ke Admin;
+        :Kolom F = lengkap;
+
+        |Admin|
+        :[ADMIN - PENGUNGGAH]\nMenerima notifikasi\n BAST disetujui;
+      endif
+    endif
+
+    |Sistem|
+  repeat while (SISTEM:\nStatus belum completed?) is (YA - ULANGI)
+
+  |Admin|
+  :[ADMIN]\nBantuan CSR selesai;
+  stop
+  @enduml

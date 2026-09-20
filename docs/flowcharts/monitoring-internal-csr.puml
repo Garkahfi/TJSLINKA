@@ -1,0 +1,143 @@
+@startuml
+title Monitoring Program Internal dan Bantuan CSR
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ArrowColor #0F172A
+skinparam nodesep 10
+skinparam ranksep 16
+skinparam wrapWidth 190
+skinparam swimlaneBorderColor #94A3B8
+skinparam swimlaneTitleBackgroundColor #E2E8F0
+skinparam swimlaneTitleFontColor #0F172A
+skinparam activity {
+  BackgroundColor #F8FAFC
+  BorderColor #0F172A
+  FontColor #0F172A
+  DiamondBackgroundColor #FEF3C7
+  DiamondBorderColor #B45309
+  StartColor #16A34A
+  EndColor #DC2626
+}
+
+|Pengguna Dashboard|
+start
+:Login melalui /login;
+
+|Sistem Laravel|
+:Autentikasi guard web;
+while (Login gagal?) is (Ya)
+  :Tampilkan pesan kesalahan;
+
+  |Pengguna Dashboard|
+  :Masukkan ulang kredensial;
+
+  |Sistem Laravel|
+  :Autentikasi ulang;
+endwhile (Tidak)
+
+|Pengguna Dashboard|
+:Buka /program-tjsl/overview;
+:Masukkan keyword dan/atau pilih tahun\nbila membutuhkan filter;
+:Tekan tombol "Cari";
+
+note right
+  Pencarian tidak dijalankan
+  pada setiap ketikan.
+end note
+
+|Sistem Laravel|
+:Validasi keyword maksimal 100 karakter;
+:Validasi tahun 2024, 2025, atau 2026;
+
+|Database MySQL|
+:Ambil Program Internal dengan status:\napproved_fase1, pending_fase2, completed;
+:Ambil Bantuan CSR dengan status:\napproved_fase1, pending_fase2, completed;
+:Terapkan keyword pada nama program\natau nama bantuan;
+
+note right
+  Draft, pending_fase1, dan
+  rejected_fase1 tidak tampil.
+
+  Program Eksternal sengaja berada
+  di luar ruang lingkup diagram ini.
+end note
+
+|Sistem Laravel|
+:Normalisasi Program Internal PKS:\nA, B, C, D, E, dan F berlaku;
+:Normalisasi Program Internal NON-PKS:\nA, B, dan F berlaku;\nC, D, dan E tidak berlaku;
+:Normalisasi Bantuan CSR:\nA, B, dan F berlaku;\nC, D, dan E tidak berlaku;
+
+:Tentukan state setiap dokumen;
+
+if (Dokumen tidak berlaku?) then (Ya)
+  :Tampilkan strip abu-abu;
+else (Tidak)
+  if (Kolom F dan status approved_fase1?) then (Ya)
+    :Tampilkan ikon jam oranye;\nmenunggu upload/perbaikan BAST;
+  else (Tidak)
+    if (Dokumen tersedia?) then (Ya)
+      :Tampilkan centang hijau;
+    else (Tidak)
+      :Tampilkan silang abu-abu;
+    endif
+  endif
+endif
+
+:Tambahkan badge Internal PKS,\nInternal NON-PKS, atau CSR;
+:Kelompokkan data berdasarkan pilar;
+:Terapkan filter tahun pada hasil monitoring;
+:Urutkan berdasarkan pembaruan terbaru;
+:Render tabel checklist A-F;
+:Hitung signature kondisi monitoring;
+
+|Pengguna Dashboard|
+:Melihat tabel monitoring;
+
+note right
+  Pada pending_fase2, centang F berarti
+  file BAST tersedia dan sedang direview.
+  ACC final baru terjadi pada completed.
+end note
+
+while (Halaman monitoring masih dibuka?) is (Ya)
+  :Tunggu 10 detik\natau tab kembali aktif;
+
+  if (Tab terlihat dan input pencarian tidak sedang diubah?) then (Tidak)
+    :Jangan mengirim permintaan refresh;
+  else (Ya)
+    :Kirim keyword, tahun,\ndan signature terakhir;
+
+    |Sistem Laravel|
+    :Validasi parameter monitoring;
+
+    |Database MySQL|
+    :Ambil status, waktu pembaruan,\njumlah dokumen, dan data pilar;
+
+    |Sistem Laravel|
+    :Hitung signature monitoring terbaru;
+
+    if (Signature berubah?) then (Tidak)
+      :Kirim respons 204 No Content;
+
+      |Pengguna Dashboard|
+      :Pertahankan tabel tanpa render ulang;
+    else (Ya)
+      |Database MySQL|
+      :Ambil ulang data Internal dan CSR\nyang memenuhi status monitoring;
+
+      |Sistem Laravel|
+      :Normalisasi, kelompokkan,\ndan render fragmen tabel terbaru;
+      :Kirim HTML dan signature baru;
+
+      |Pengguna Dashboard|
+      :Ganti tabel lama secara otomatis\ntanpa reload seluruh halaman;
+    endif
+  endif
+endwhile (Tidak)
+
+stop
+
+@enduml
