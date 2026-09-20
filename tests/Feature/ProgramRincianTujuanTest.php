@@ -85,6 +85,22 @@ class ProgramRincianTujuanTest extends TestCase
             ->assertSee('data-pillar-card="sosial"', false);
     }
 
+    public function test_rincian_cards_label_pks_non_pks_and_bantuan_tjsl(): void
+    {
+        $pks = $this->program('Program Kerja Sama PKS', $this->social, 'completed');
+        $pks->update(['jenis_kerjasama' => 'pks']);
+        $this->program('Program Kerja Sama Non-PKS', $this->social, 'completed');
+        $this->csr('Program Bantuan TJSL', $this->social, 'completed');
+
+        $this->actingAs($this->user)
+            ->get(route('program.rincian', ['pilar' => 'sosial']))
+            ->assertOk()
+            ->assertSee('data-program-kind="pks"', false)
+            ->assertSee('data-program-kind="non-pks"', false)
+            ->assertSee('data-program-kind="bantuan-tjsl"', false)
+            ->assertSee('Bantuan TJSL');
+    }
+
     public function test_rincian_combines_approved_internal_and_csr_programs_with_server_side_filter_and_pagination(): void
     {
         foreach (range(1, 7) as $index) {
