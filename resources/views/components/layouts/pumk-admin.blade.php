@@ -23,12 +23,12 @@
 @php($mustChangePassword = auth('pumk')->user()->must_change_password)
 <div class="pumk-shell" data-pumk-shell>
     <header class="pumk-header">
-        <a href="{{ route($mustChangePassword ? 'pumk-admin.password.edit' : 'pumk-admin.home') }}" aria-label="Dashboard Admin PUMK">
+        <a href="{{ route($mustChangePassword ? 'pumk-admin.profile' : 'pumk-admin.home') }}" aria-label="Dashboard Admin PUMK">
             <img src="{{ asset('images/logo/lensa-tjsl-inka-navbar.png') }}" class="pumk-logo" alt="LENSA TJSL INKA">
         </a>
         <div class="pumk-identity">
             <span class="pumk-greeting">Hi, {{ auth('pumk')->user()->nama_depan ?: auth('pumk')->user()->name }}{{ $mustChangePassword ? ' · Ganti Password' : '' }}</span>
-            <a href="{{ route('pumk-admin.password.edit') }}" class="pumk-user-icon" aria-label="Ganti password Admin PUMK" title="Ganti password">
+            <a href="{{ route('pumk-admin.profile') }}" class="pumk-user-icon" aria-label="Profil" title="Profil">
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.12a7.5 7.5 0 0 1 15 0"/></svg>
             </a>
         </div>

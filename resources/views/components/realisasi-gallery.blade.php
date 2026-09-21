@@ -24,7 +24,7 @@
 @if($galleryPhotos->isNotEmpty())
     <section class="realisasi-gallery py-5" aria-label="{{ $label }}">
         <div class="realisasi-gallery-viewport" tabindex="0">
-            <div class="realisasi-gallery-track" style="--realisasi-gallery-duration: {{ $duration }}s">
+            <div class="realisasi-gallery-track" @style(['--realisasi-gallery-duration:'.$duration.'s'])>
                 @foreach([false, true] as $duplicate)
                     <div class="realisasi-gallery-group" @if($duplicate) aria-hidden="true" @endif>
                         @foreach($galleryPhotos as $photo)

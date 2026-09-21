@@ -89,8 +89,7 @@ class PumkMitraController extends Controller
         PiutangCalculator $calculator,
         PumkActivityLogger $activity,
         PumkLoanDocumentService $documents,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $data = $this->validateMitra($request);
 
         $existingArchived = PumkMitra::query()
@@ -176,8 +175,7 @@ class PumkMitraController extends Controller
         PiutangCalculator $calculator,
         PumkActivityLogger $activity,
         PumkLoanDocumentService $documents,
-    ): RedirectResponse
-    {
+    ): RedirectResponse {
         $data = $this->validateMitra($request);
 
         $reactivated = DB::transaction(function () use ($request, $data, $mitra, $calculator, $activity, $documents): bool {

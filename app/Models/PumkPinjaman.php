@@ -135,5 +135,4 @@ class PumkPinjaman extends Model
     {
         return $this->hasMany(PumkPinjamanDokumen::class, 'pinjaman_id');
     }
-
 }

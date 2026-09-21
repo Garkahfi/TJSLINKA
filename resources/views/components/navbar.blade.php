@@ -51,7 +51,7 @@
                 <button class="nav-link inline-flex items-center gap-1" type="button">
                     Program TJSL <span>⌄</span>
                 </button>
-                <div class="invisible absolute left-1/2 top-[70px] w-72 -translate-x-1/2 rounded-lg bg-white p-2 opacity-0 shadow-xl group-hover:visible group-hover:opacity-100">
+                <div class="invisible absolute left-1/2 top-17.5 w-72 -translate-x-1/2 rounded-lg bg-white p-2 opacity-0 shadow-xl group-hover:visible group-hover:opacity-100">
                     <a href="{{ route('program.overview') }}" class="block rounded-md px-4 py-3 text-sm hover:bg-slate-100">Overview Program TJSL INKA</a>
                     <a href="{{ route('program.rincian') }}" class="block rounded-md px-4 py-3 text-sm hover:bg-slate-100">Realisasi Program TJSL INKA</a>
                 </div>

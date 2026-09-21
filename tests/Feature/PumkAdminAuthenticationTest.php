@@ -114,6 +114,42 @@ class PumkAdminAuthenticationTest extends TestCase
         $this->get(route('admin.home'))->assertOk();
     }
 
+    public function test_pumk_admin_profile_uses_the_shared_profile_and_password_forms(): void
+    {
+        $pumkAdmin = $this->user('pumk_admin', 'profile-pumk', 'PumkPassword2026');
+
+        $this->actingAs($pumkAdmin, 'pumk')
+            ->get(route('pumk-admin.profile'))
+            ->assertOk()
+            ->assertSee('Informasi Pribadi')
+            ->assertSee('data-profile-form', false)
+            ->assertSee('data-password-section', false)
+            ->assertSee('Password Lama')
+            ->assertSee('Password Baru')
+            ->assertSee('Konfirmasi Password Baru');
+
+        $this->get(route('pumk-admin.password.edit'))
+            ->assertRedirect(route('pumk-admin.profile'));
+
+        $this->put(route('pumk-admin.profile.update'), [
+            'nama_depan' => 'Admin',
+            'nama_belakang' => 'PUMK',
+            'email' => 'admin.pumk.profile@example.test',
+            'no_telephone' => '081234567890',
+            'jabatan' => 'Admin PUMK',
+            'alamat' => 'PT INKA',
+        ])->assertRedirect();
+
+        $pumkAdmin->refresh();
+        $this->assertSame('Admin PUMK', $pumkAdmin->name);
+        $this->assertSame('admin.pumk.profile@example.test', $pumkAdmin->email);
+
+        $this->get(route('pumk-admin.home'))
+            ->assertOk()
+            ->assertSee(route('pumk-admin.profile'), false)
+            ->assertSee('aria-label="Profil"', false);
+    }
+
     public function test_pumk_admin_seeder_is_idempotent(): void
     {
         config()->set('pumk.admin.username', 'seeded-pumk');

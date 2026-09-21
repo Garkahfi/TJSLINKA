@@ -7,6 +7,7 @@ use App\Models\BantuanCsr;
 use App\Models\BantuanCsrDocument;
 use App\Models\Pillar;
 use App\Models\StatusLog;
+use App\Support\TjslSubmissionStatusFilter;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,23 +16,27 @@ use Illuminate\View\View;
 
 class SuperAdminBantuanCsrController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
+        $statusFilter = TjslSubmissionStatusFilter::selected($request, false);
+
         return view('superadmin.assistance.index', [
             'bantuanPerPilar' => Pillar::query()
                 ->orderBy('id')
                 ->with(['bantuanCsr' => fn ($query) => $query
                     ->with('creator')
                     ->where('is_archived', false)
-                    ->whereNotIn('status', ['draft', 'rejected_fase1'])
+                    ->tap(fn ($query) => TjslSubmissionStatusFilter::apply($query, $statusFilter, false))
                     ->latest()])
                 ->get(),
             'bantuanTanpaPilar' => BantuanCsr::with('creator')
                 ->where('is_archived', false)
-                ->whereNotIn('status', ['draft', 'rejected_fase1'])
+                ->tap(fn ($query) => TjslSubmissionStatusFilter::apply($query, $statusFilter, false))
                 ->whereNull('pillar_id')
                 ->latest()
                 ->get(),
+            'statusFilter' => $statusFilter,
+            'statusOptions' => TjslSubmissionStatusFilter::options(false),
         ]);
     }
 

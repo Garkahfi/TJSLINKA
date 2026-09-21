@@ -50,6 +50,7 @@ final class PumkScientificMoneyRepair
                 $loan = $loans->get($number);
                 if ($loan === null || $loan->created_by !== null || $loan->source_updated_at === null) {
                     $conflicts[] = $number;
+
                     continue;
                 }
 
@@ -58,6 +59,7 @@ final class PumkScientificMoneyRepair
                 if ($principal === false || $opening === false
                     || ($opening !== null && ($loan->saldoAwal === null || ! isset($loan->baseline_sumber['total_pokok_masuk'])))) {
                     $conflicts[] = $number;
+
                     continue;
                 }
 

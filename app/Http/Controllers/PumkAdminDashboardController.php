@@ -19,7 +19,6 @@ class PumkAdminDashboardController extends Controller
             ->pluck('total', 'kolektibilitas');
 
         return view('pumk-admin.dashboard', [
-            'totalMitra' => PumkMitra::query()->whereHas('pinjamanAktif')->count(),
             'totalPinjaman' => PumkPinjaman::query()->where('is_active', true)->where('status', PumkPinjaman::STATUS_AKTIF)->count(),
             'totalMitraLunas' => PumkMitra::query()
                 ->whereDoesntHave('pinjamanAktif')

@@ -22,8 +22,7 @@ class KartuPiutangService
         PumkPinjaman $pinjaman,
         ?CarbonInterface $today = null,
         int|string|null $tahun = null,
-    ): array
-    {
+    ): array {
         $pinjaman->loadMissing(['saldoAwal', 'angsuran']);
         $calculation = $this->calculator->hitungUntukPinjaman($pinjaman, $today);
         $start = $pinjaman->mulai_angsuran ? CarbonImmutable::instance($pinjaman->mulai_angsuran)->startOfDay() : null;
@@ -206,5 +205,4 @@ class KartuPiutangService
                 : 'Menampilkan periode: Tahun '.$selectedYear,
         ];
     }
-
 }

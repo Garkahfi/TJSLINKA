@@ -13,7 +13,7 @@
         ];
     @endphp
 
-    <div class="mx-auto max-w-[1100px]">
+    <div class="mx-auto max-w-275">
         <h1 class="mb-8 text-center text-3xl font-bold">{{ $titles[$pageStatus] }}</h1>
 
         <div class="space-y-5">

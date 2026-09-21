@@ -31,7 +31,7 @@
 }
 
 @layer components {
-    .container-site { @apply mx-auto w-full max-w-[1320px] px-5 md:px-8; }
+    .container-site { @apply mx-auto w-full max-w-330 px-5 md:px-8; }
     .section-title { @apply text-center text-2xl font-extrabold tracking-tight md:text-4xl; }
     .panel { @apply rounded-xl border border-slate-200 bg-white shadow-sm; }
     .nav-link { @apply text-sm font-semibold text-inka-navy hover:text-inka-red; }

@@ -7,6 +7,7 @@ use App\Models\Pillar;
 use App\Models\Program;
 use App\Models\ProgramDocument;
 use App\Models\StatusLog;
+use App\Support\TjslSubmissionStatusFilter;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,18 +19,22 @@ class SuperAdminProgramController extends Controller
 {
     public function index(Request $request): View
     {
+        $statusFilter = TjslSubmissionStatusFilter::selected($request, false);
         $selectedPillar = $request->filled('pillar')
             ? Pillar::where('slug', $request->query('pillar'))->first()
             : null;
 
-        $programs = Program::with('pillar', 'creator')
+        $programsQuery = Program::with('pillar', 'creator')
             ->where('is_archived', false)
-            ->whereIn('status', Program::PUBLIC_STATUSES)
-            ->when($selectedPillar, fn ($query) => $query->where('pillar_id', $selectedPillar->id))
-            ->latest()
-            ->get();
+            ->when($selectedPillar, fn ($query) => $query->where('pillar_id', $selectedPillar->id));
+        $programs = TjslSubmissionStatusFilter::apply($programsQuery, $statusFilter, false)->latest()->get();
 
-        return view('superadmin.programs.index', compact('programs', 'selectedPillar'));
+        return view('superadmin.programs.index', [
+            'programs' => $programs,
+            'selectedPillar' => $selectedPillar,
+            'statusFilter' => $statusFilter,
+            'statusOptions' => TjslSubmissionStatusFilter::options(false),
+        ]);
     }
 
     public function show(Program $program): View

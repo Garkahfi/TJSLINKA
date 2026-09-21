@@ -1,11 +1,11 @@
 <x-layouts.app :title="$program['title'].' — LENSA TJSL INKA'">
-    <section class="relative isolate flex min-h-[430px] items-end overflow-hidden pb-12 text-white">
+    <section class="relative isolate flex min-h-107.5 items-end overflow-hidden pb-12 text-white">
         @if($program['cover_image'])
             <img src="{{ $program['cover_image'] }}" alt="{{ $program['title'] }}" class="absolute inset-0 -z-20 h-full w-full object-cover">
         @else
-            <div class="absolute inset-0 -z-20 bg-gradient-to-br from-slate-700 to-slate-950" aria-hidden="true"></div>
+            <div class="absolute inset-0 -z-20 bg-linear-to-br from-slate-700 to-slate-950" aria-hidden="true"></div>
         @endif
-        <div class="absolute inset-0 -z-10 bg-gradient-to-t from-black via-black/25 to-transparent"></div>
+        <div class="absolute inset-0 -z-10 bg-linear-to-t from-black via-black/25 to-transparent"></div>
         <div class="container-site">
             <div class="mb-4 flex justify-center">
                 <span class="rounded-full bg-[#7c3aed] px-4 py-1.5 text-sm font-bold shadow">Bantuan TJSL</span>
@@ -45,7 +45,7 @@
 
             <h2 class="section-title mb-9 mt-16">Rincian Penerimaan Bantuan TJSL</h2>
             <div class="overflow-x-auto rounded-xl border bg-white">
-                <table class="w-full min-w-[980px] text-sm">
+                <table class="w-full min-w-245 text-sm">
                     <thead class="bg-inka-navy text-white">
                         <tr>
                             <th class="p-4">No</th>
@@ -75,7 +75,7 @@
 
             <h2 class="section-title mb-9 mt-16">Kelengkapan Dokumen Bantuan TJSL</h2>
             <div class="overflow-x-auto rounded-xl border bg-white">
-                <table class="w-full min-w-[760px] text-sm">
+                <table class="w-full min-w-190 text-sm">
                     <thead class="bg-inka-navy text-white">
                         <tr>
                             <th class="p-4">No</th>

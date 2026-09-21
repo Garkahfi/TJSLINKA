@@ -4,7 +4,6 @@
     <div class="pumk-monitor">
         <h1>Monitoring Admin PUMK</h1>
         <p class="intro">Pantau progres PUMK Internal dan PUMK BRI tanpa mengubah pekerjaan Admin PUMK.</p>
-        <p class="notice"><strong>Mode pemantau baca-saja.</strong> Super Admin dapat melihat histori dan mengunduh kartu, tetapi tidak dapat menambah, mengedit, menghapus, mengimpor, maupun menandai pinjaman lunas.</p>
 
         <nav class="monitor-tabs" aria-label="Jenis data PUMK">
             <a @class(['active' => $tab === 'internal']) href="{{ route('superadmin.pumk.index', ['tab' => 'internal']) }}">PUMK Internal / Kartu Piutang</a>
@@ -78,9 +77,10 @@
             <section class="panel">
                 <h2>Input realisasi BRI {{ $year }}</h2>
                 <div class="table-wrap"><table><thead><tr><th>Diperbarui</th><th>Admin PUMK</th><th>Periode</th><th class="number">Nominal penyaluran</th></tr></thead><tbody>
-                    @forelse($penyaluranBriTerbaru as $item)
-                        <tr><td>{{ $item->updated_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '-' }}</td><td>{{ $item->pengubah?->name ?? 'Akun tidak tersedia' }}</td><td>{{ str_pad((string) $item->bulan, 2, '0', STR_PAD_LEFT) }}/{{ $item->tahun }}</td><td class="number">{{ $rupiah($item->nominal_penyaluran) }}</td></tr>
-                    @empty<tr><td colspan="4" class="muted">Belum ada input realisasi BRI untuk tahun ini.</td></tr>@endforelse
+                    @foreach([1=>'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'] as $month => $label)
+                        @php($item = $penyaluranBri->get($month))
+                        <tr><td>{{ $item?->updated_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '-' }}</td><td>{{ $item?->pengubah?->name ?? ($item ? 'Akun tidak tersedia' : '-') }}</td><td>{{ $label }} {{ $year }}</td><td class="number">{{ $item ? $rupiah($item->nominal_penyaluran) : 'Belum diinput' }}</td></tr>
+                    @endforeach
                 </tbody></table></div>
             </section>
         @endif

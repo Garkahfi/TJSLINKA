@@ -15,7 +15,7 @@ class PumkAdminAuthController extends Controller
     public function showLogin(): View|RedirectResponse
     {
         if (Auth::guard('pumk')->check()) {
-            return redirect()->route(Auth::guard('pumk')->user()->must_change_password ? 'pumk-admin.password.edit' : 'pumk-admin.home');
+            return redirect()->route(Auth::guard('pumk')->user()->must_change_password ? 'pumk-admin.profile' : 'pumk-admin.home');
         }
 
         return view('pumk-admin.auth.login');
@@ -49,12 +49,12 @@ class PumkAdminAuthController extends Controller
         $request->session()->regenerate();
         $request->session()->forget('url.intended');
 
-        return redirect()->route($guard->user()->must_change_password ? 'pumk-admin.password.edit' : 'pumk-admin.home');
+        return redirect()->route($guard->user()->must_change_password ? 'pumk-admin.profile' : 'pumk-admin.home');
     }
 
-    public function showChangePassword(): View
+    public function showChangePassword(): RedirectResponse
     {
-        return view('pumk-admin.auth.change-password');
+        return redirect()->route('pumk-admin.profile');
     }
 
     public function changePassword(Request $request): RedirectResponse
@@ -70,7 +70,7 @@ class PumkAdminAuthController extends Controller
         ]);
         $request->session()->regenerate();
 
-        return redirect()->route('pumk-admin.home')->with('success', 'Password berhasil diganti.');
+        return redirect()->route('pumk-admin.profile')->with('success', 'Password berhasil diganti.');
     }
 
     public function logout(Request $request): RedirectResponse

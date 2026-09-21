@@ -22,7 +22,7 @@
         <section data-pillar-group="{{ $pillar->slug }}">
             <div
                 class="flex min-h-11 items-center justify-between gap-4 rounded-t-md px-4 py-2 font-bold text-white"
-                style="background-color: {{ $pillarColor }}"
+                @style(['background-color: ' . $pillarColor])
             >
                 <span>PILAR PEMBANGUNAN {{ strtoupper($pillar->name) }}</span>
                 <span class="text-xs font-semibold">{{ $pillar->bantuanCsr->count() }} Bantuan</span>

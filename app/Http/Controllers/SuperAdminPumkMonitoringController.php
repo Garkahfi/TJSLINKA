@@ -13,13 +13,14 @@ use App\Models\PumkImportRow;
 use App\Models\PumkMitra;
 use App\Models\PumkPinjaman;
 use App\Services\Pumk\KartuPiutangService;
+use App\Services\Pumk\PumkBriYearService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class SuperAdminPumkMonitoringController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, PumkBriYearService $yearsService): View
     {
         $filters = $request->validate([
             'tab' => ['nullable', Rule::in(['internal', 'bri'])],
@@ -27,10 +28,10 @@ class SuperAdminPumkMonitoringController extends Controller
         ]);
         $tab = $filters['tab'] ?? 'internal';
 
-        $years = PumkBriSnapshotBulanan::query()->distinct()->pluck('tahun')
-            ->merge(PumkBriRkaTahunan::query()->pluck('tahun'))
-            ->merge(PumkBriPenyaluranBulanan::query()->pluck('tahun'))
-            ->map(fn (mixed $year): int => (int) $year)->unique()->sortDesc()->values();
+        $years = $yearsService->availableYears();
+        if ($tab === 'bri' && isset($filters['tahun'])) {
+            abort_unless($years->contains((int) $filters['tahun']), 404, 'Tahun PUMK BRI belum tersedia.');
+        }
         $year = (int) ($filters['tahun'] ?? $years->first() ?? now()->year);
         $rka = PumkBriRkaTahunan::query()->where('tahun', $year)->first();
         $realisasi = (float) PumkBriPenyaluranBulanan::query()->where('tahun', $year)->sum('nominal_penyaluran');
@@ -68,7 +69,8 @@ class SuperAdminPumkMonitoringController extends Controller
             'briTotalMitra' => $latestMonth === null ? null : (clone $latestSnapshots)->whereNotNull('mitra_id')->distinct()->count('mitra_id'),
             'briUnverified' => PumkBriSnapshotBulanan::where('tahun', $year)->where('profil_sumber_terverifikasi', false)->count(),
             'briIdentityReviews' => PumkBriIdentityReview::where('tahun', $year)->where('status', 'pending')->count(),
-            'penyaluranBriTerbaru' => PumkBriPenyaluranBulanan::with('pengubah:id,name')->where('tahun', $year)->latest('updated_at')->limit(12)->get(),
+            'penyaluranBri' => PumkBriPenyaluranBulanan::with('pengubah:id,name')
+                ->where('tahun', $year)->get()->keyBy('bulan'),
         ]);
     }
 

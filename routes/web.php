@@ -108,7 +108,10 @@ Route::prefix('admin-pumk')->name('pumk-admin.')->group(function () {
         Route::post('/logout', [PumkAdminAuthController::class, 'logout'])->name('logout');
         Route::redirect('/', '/admin-pumk/home')->name('dashboard');
         Route::get('/home', PumkAdminDashboardController::class)->name('home');
+        Route::get('/profil', [AdminProfileController::class, 'edit'])->name('profile');
+        Route::put('/profil', [AdminProfileController::class, 'update'])->name('profile.update');
         Route::get('/pumk-bri/rka-realisasi', [PumkBriPlanningController::class, 'index'])->name('bri-planning.index');
+        Route::post('/pumk-bri/tahun', [PumkBriPlanningController::class, 'storeYear'])->name('bri-planning.year.store');
         Route::post('/pumk-bri/rka', [PumkBriPlanningController::class, 'storeRka'])->name('bri-planning.rka.store');
         Route::post('/pumk-bri/realisasi', [PumkBriPlanningController::class, 'storeMonthly'])->name('bri-planning.monthly.store');
         Route::delete('/pumk-bri/realisasi/{penyaluran}', [PumkBriPlanningController::class, 'destroyMonthly'])->name('bri-planning.monthly.destroy');

@@ -36,15 +36,19 @@ class LoginSecurityTest extends TestCase
 
         $this->post(route('pumk-admin.login.store'), [
             'username' => 'pumk-temporary', 'password' => 'TemporaryPassword2026',
-        ])->assertRedirect(route('pumk-admin.password.edit'));
-        $this->get(route('pumk-admin.home'))->assertRedirect(route('pumk-admin.password.edit'));
-        $this->get(route('pumk-admin.password.edit'))->assertOk()->assertSee('Ganti Password');
+        ])->assertRedirect(route('pumk-admin.profile'));
+        $this->get(route('pumk-admin.home'))->assertRedirect(route('pumk-admin.profile'));
+        $this->get(route('pumk-admin.profile'))
+            ->assertOk()
+            ->assertSee('Password sementara wajib diganti')
+            ->assertSee('data-password-section', false);
+        $this->get(route('pumk-admin.password.edit'))->assertRedirect(route('pumk-admin.profile'));
 
         $this->put(route('pumk-admin.password.update'), [
             'current_password' => 'TemporaryPassword2026',
             'password' => 'NewPrivatePassword2026',
             'password_confirmation' => 'NewPrivatePassword2026',
-        ])->assertRedirect(route('pumk-admin.home'));
+        ])->assertRedirect(route('pumk-admin.profile'));
 
         $this->assertFalse($user->fresh()->must_change_password);
         $this->assertTrue(Hash::check('NewPrivatePassword2026', $user->fresh()->password));

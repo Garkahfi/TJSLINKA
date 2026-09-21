@@ -14,5 +14,5 @@
         </span>
     </span>
 
-    @include('admin.partials.status-badge', ['status' => $item->status])
+    @include('admin.partials.status-badge', ['status' => $item->status, 'phaseTwoRejected' => filled($item->fase2_rejected_reason)])
 </a>

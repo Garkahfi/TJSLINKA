@@ -16,6 +16,14 @@
             </div>
         </div>
 
+        @include('admin.partials.status-filter', [
+            'routeName' => 'superadmin.programs.index',
+            'filterId' => 'superadmin-program-status-filter',
+            'selectedPillar' => $selectedPillar,
+            'resultCount' => $programs->count(),
+            'resultLabel' => 'program',
+        ])
+
         <div class="sa-list">
             @forelse ($programs as $program)
                 @php
@@ -39,12 +47,12 @@
                     </span>
 
                     <span class="sa-item-actions">
-                        @include('admin.partials.status-badge', ['status' => $program->status])
+                        @include('admin.partials.status-badge', ['status' => $program->status, 'phaseTwoRejected' => filled($program->fase2_rejected_reason)])
                     </span>
                 </a>
             @empty
                 <p class="sa-empty">
-                    Belum ada program{{ $selectedPillar ? ' pada kategori '.$selectedPillar->name : '' }}.
+                    Belum ada program dengan status {{ $statusOptions[$statusFilter] }}{{ $selectedPillar ? ' pada kategori '.$selectedPillar->name : '' }}.
                 </p>
             @endforelse
         </div>

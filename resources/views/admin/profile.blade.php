@@ -1,10 +1,15 @@
-<x-layouts.admin title="Profil">
-    @php
-        $profilePrefix = request()->routeIs('superadmin.*') ? 'superadmin' : 'admin';
-        $passwordFormOpen = old('password_form') === '1'
-            || $errors->has('current_password')
-            || $errors->has('password');
-    @endphp
+@php
+    $isPumkPanel = request()->routeIs('pumk-admin.*');
+    $profilePrefix = $isPumkPanel
+        ? 'pumk-admin'
+        : (request()->routeIs('superadmin.*') ? 'superadmin' : 'admin');
+    $profileLayout = $isPumkPanel ? 'layouts.pumk-admin' : 'layouts.admin';
+    $passwordFormOpen = old('password_form') === '1'
+        || $errors->has('current_password')
+        || $errors->has('password');
+@endphp
+
+<x-dynamic-component :component="$profileLayout" title="Profil">
     <style>
         .profile-card{width:100%;max-width:860px;margin:0 auto;background:#fff;border:1px solid #ececec;border-radius:0 0 14px 14px;padding:42px 34px 28px;box-shadow:0 3px 2px rgba(0,0,0,.22);color:#090f20}
         .profile-title{margin:0 0 28px;font-size:18px;font-weight:500}.profile-identity{display:flex;align-items:center;gap:18px;margin-bottom:30px}.profile-avatar{display:grid;width:72px;height:72px;flex:0 0 72px;place-items:center;overflow:hidden;border-radius:999px;background:#d9d9d9;color:#111827;font-size:22px}.profile-avatar img{width:100%;height:100%;object-fit:cover}.profile-person-name{font-size:18px;font-weight:600}.profile-person-role{margin-top:5px;font-size:13px}
@@ -181,4 +186,4 @@
             });
         })();
     </script>
-</x-layouts.admin>
+</x-dynamic-component>

@@ -8,8 +8,8 @@ use App\Models\PumkMitra;
 use App\Models\PumkPinjaman;
 use App\Models\PumkPinjamanDokumen;
 use App\Models\User;
-use App\Services\Pumk\PiutangCalculator;
 use App\Services\Pumk\KartuPiutangService;
+use App\Services\Pumk\PiutangCalculator;
 use App\Services\Pumk\PumkImportRowException;
 use App\Services\Pumk\PumkImportService;
 use App\Services\Pumk\PumkScientificMoneyRepair;
@@ -56,7 +56,7 @@ class PumkImportServiceTest extends TestCase
         $loan = PumkPinjaman::firstOrFail();
         $loan->angsuran()->delete();
         $admin = User::factory()->create(['role' => 'pumk_admin']);
-        $path = "pumk/angsuran/manual/bukti.pdf";
+        $path = 'pumk/angsuran/manual/bukti.pdf';
         Storage::disk('local')->put($path, 'proof');
         $manual = PumkAngsuran::create([
             'pinjaman_id' => $loan->id, 'periode' => '2026-01-01',

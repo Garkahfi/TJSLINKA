@@ -12,6 +12,14 @@
             </div>
         </div>
 
+        @include('admin.partials.status-filter', [
+            'routeName' => 'admin.programs.index',
+            'filterId' => 'admin-program-status-filter',
+            'selectedPillar' => $selectedPillar,
+            'resultCount' => $programs->count(),
+            'resultLabel' => 'program',
+        ])
+
         <div class="space-y-5">
             @forelse ($programs as $program)
                 @php
@@ -32,12 +40,12 @@
                     </span>
 
                     <span class="flex items-center gap-3">
-                        @include('admin.partials.status-badge', ['status' => $program->status])
+                        @include('admin.partials.status-badge', ['status' => $program->status, 'phaseTwoRejected' => filled($program->fase2_rejected_reason)])
                     </span>
                 </a>
             @empty
                 <p class="rounded-xl border bg-white p-8 text-center text-slate-500">
-                    Belum ada program{{ $selectedPillar ? ' pada kategori '.$selectedPillar->name : '' }}.
+                    Belum ada program dengan status {{ $statusOptions[$statusFilter] }}{{ $selectedPillar ? ' pada kategori '.$selectedPillar->name : '' }}.
                 </p>
             @endforelse
         </div>

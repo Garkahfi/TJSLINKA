@@ -1076,7 +1076,7 @@
                                     stroke="#243b7a"
                                     stroke-width="29"
                                     pathLength="100"
-                                    style="stroke-dasharray:{{ $pumkBriDashboard['ringkasan']['progres'] ?? 0 }} 100;"
+                                    @style(['stroke-dasharray:'.($pumkBriDashboard['ringkasan']['progres'] ?? 0).' 100'])
                                 />
                             </svg>
                             <div class="pumk-bri-gauge-center">

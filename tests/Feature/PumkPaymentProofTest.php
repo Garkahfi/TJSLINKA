@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\PumkActivityLog;
 use App\Models\PumkAngsuran;
 use App\Models\PumkImportBatch;
 use App\Models\PumkMitra;
@@ -158,7 +157,7 @@ class PumkPaymentProofTest extends TestCase
         Storage::fake('local');
         $admin = $this->user('pumk_admin');
         [$mitra, $pinjaman] = $this->loan();
-        $path = "pumk/angsuran/1/bukti/manual.pdf";
+        $path = 'pumk/angsuran/1/bukti/manual.pdf';
         Storage::disk('local')->put($path, 'proof');
         $angsuran = PumkAngsuran::create([
             'pinjaman_id' => $pinjaman->id, 'periode' => '2026-01-01',
@@ -197,7 +196,7 @@ class PumkPaymentProofTest extends TestCase
         $admin = $this->user('pumk_admin');
         $this->actingAs($admin, 'pumk');
         [$mitra, $pinjaman] = $this->loan('lunas', 0, 0);
-        $path = "pumk/angsuran/paid/bukti.pdf";
+        $path = 'pumk/angsuran/paid/bukti.pdf';
         Storage::disk('local')->put($path, 'proof');
         $angsuran = PumkAngsuran::create([
             'pinjaman_id' => $pinjaman->id, 'periode' => '2026-01-01',

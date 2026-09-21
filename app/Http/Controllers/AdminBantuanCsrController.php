@@ -7,6 +7,7 @@ use App\Models\BantuanCsrDocument;
 use App\Models\Pillar;
 use App\Models\StatusLog;
 use App\Services\SubmissionNotificationService;
+use App\Support\TjslSubmissionStatusFilter;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ class AdminBantuanCsrController extends Controller
     public function index(Request $request): View
     {
         $adminId = $request->user()->id;
+        $statusFilter = TjslSubmissionStatusFilter::selected($request, true);
 
         return view('admin.assistance.index', [
             'bantuanPerPilar' => Pillar::query()
@@ -27,15 +29,17 @@ class AdminBantuanCsrController extends Controller
                 ->with(['bantuanCsr' => fn ($query) => $query
                     ->where('created_by', $adminId)
                     ->where('is_archived', false)
-                    ->where('status', '!=', 'rejected_fase1')
+                    ->tap(fn ($query) => TjslSubmissionStatusFilter::apply($query, $statusFilter, true))
                     ->latest()])
                 ->get(),
             'bantuanTanpaPilar' => BantuanCsr::where('created_by', $adminId)
                 ->where('is_archived', false)
-                ->where('status', '!=', 'rejected_fase1')
+                ->tap(fn ($query) => TjslSubmissionStatusFilter::apply($query, $statusFilter, true))
                 ->whereNull('pillar_id')
                 ->latest()
                 ->get(),
+            'statusFilter' => $statusFilter,
+            'statusOptions' => TjslSubmissionStatusFilter::options(true),
         ]);
     }
 

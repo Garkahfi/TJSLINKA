@@ -7,6 +7,7 @@ use App\Models\PumkBriPenyaluranBulanan;
 use App\Models\PumkBriRkaTahunan;
 use App\Models\PumkBriSnapshotBulanan;
 use App\Models\PumkSnapshotBulanan;
+use App\Services\Pumk\PumkBriYearService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -58,20 +59,13 @@ class PumkDashboardService
 
     public function __construct(
         private readonly PumkBriGeoReference $geoReference,
+        private readonly PumkBriYearService $yearService,
     ) {}
 
     /** @return array<string, mixed> */
     public function bri(?int $requestedYear = null): array
     {
-        $years = PumkBriSnapshotBulanan::query()
-            ->distinct()
-            ->pluck('tahun')
-            ->merge(PumkBriRkaTahunan::query()->pluck('tahun'))
-            ->merge(PumkBriPenyaluranBulanan::query()->pluck('tahun'))
-            ->map(fn (mixed $year): int => (int) $year)
-            ->unique()
-            ->sortDesc()
-            ->values();
+        $years = $this->yearService->availableYears();
         $year = $requestedYear !== null && $years->contains($requestedYear)
             ? $requestedYear
             : ($years->first() ?? now()->year);
@@ -80,12 +74,12 @@ class PumkDashboardService
             ->max('bulan') ?? 0);
         $hasSnapshot = $latestMonth > 0;
         $rkaRecord = PumkBriRkaTahunan::query()->where('tahun', $year)->first();
-        $rka = $rkaRecord === null ? null : (float) $rkaRecord->nominal_rka;
+        $rka = $rkaRecord?->nominal_rka === null ? null : (float) $rkaRecord->nominal_rka;
         $monthlyInputs = PumkBriPenyaluranBulanan::query()
             ->where('tahun', $year)->orderBy('bulan')->get()->keyBy('bulan');
         $hasMonthlyInput = $monthlyInputs->isNotEmpty();
         $realisasi = (float) $monthlyInputs->sum('nominal_penyaluran');
-        $hasRealisasi = $hasMonthlyInput || $rkaRecord !== null;
+        $hasRealisasi = $hasMonthlyInput || $rka !== null;
 
         $latestSnapshots = DB::table('pumk_bri_snapshot_bulanan as snapshot')
             ->join('pumk_bri_mitra as mitra', 'mitra.id', '=', 'snapshot.mitra_id')
@@ -231,7 +225,7 @@ class PumkDashboardService
             ],
             'ketersediaan' => [
                 'snapshot' => $hasSnapshot,
-                'rka' => $rkaRecord !== null,
+                'rka' => $rka !== null,
                 'realisasi' => $hasRealisasi,
                 'realisasi_source' => $hasRealisasi ? 'input_bulanan' : null,
                 'wilayah_mitra_dapat_berulang' => $wilayahMitraDapatBerulang,

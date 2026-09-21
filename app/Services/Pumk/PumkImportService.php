@@ -642,7 +642,7 @@ final class PumkImportService
     }
 
     /**
-     * @param array<string, mixed> $cells
+     * @param  array<string, mixed>  $cells
      * @return list<string>
      */
     private function contractDocumentWarnings(PumkPinjaman $pinjaman, array $cells): array

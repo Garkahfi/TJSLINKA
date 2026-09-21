@@ -33,9 +33,9 @@
             class="program-rincian-card-image absolute inset-0 h-full w-full object-cover"
         >
     @else
-        <div class="program-rincian-card-image absolute inset-0 bg-gradient-to-br from-slate-700 to-slate-950" aria-hidden="true"></div>
+        <div class="program-rincian-card-image absolute inset-0 bg-linear-to-br from-slate-700 to-slate-950" aria-hidden="true"></div>
     @endif
-    <div class="program-rincian-card-overlay absolute inset-0 bg-gradient-to-t from-black via-black/15 to-transparent"></div>
+    <div class="program-rincian-card-overlay absolute inset-0 bg-linear-to-t from-black via-black/15 to-transparent"></div>
     <span class="program-rincian-card-badge program-rincian-card-badge--{{ $kind }} absolute left-3 top-3 rounded-full px-3 py-1 text-[11px] font-extrabold text-white">
         {{ $kindLabel }}
     </span>

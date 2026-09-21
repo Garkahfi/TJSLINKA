@@ -194,7 +194,7 @@
         </p>
     @else
         <div class="overflow-x-auto rounded-xl border bg-white shadow-sm">
-            <table class="w-full min-w-[1020px] text-sm">
+            <table class="w-full min-w-255 text-sm">
                 <thead>
                     <tr class="border-b">
                         <th class="p-4">No</th>

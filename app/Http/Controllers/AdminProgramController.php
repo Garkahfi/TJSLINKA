@@ -7,6 +7,7 @@ use App\Models\Program;
 use App\Models\ProgramDocument;
 use App\Models\StatusLog;
 use App\Services\SubmissionNotificationService;
+use App\Support\TjslSubmissionStatusFilter;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,19 +22,23 @@ class AdminProgramController extends Controller
 {
     public function index(Request $request): View
     {
+        $statusFilter = TjslSubmissionStatusFilter::selected($request, true);
         $selectedPillar = $request->filled('pillar')
             ? Pillar::where('slug', $request->query('pillar'))->first()
             : null;
 
-        $programs = Program::with('pillar')
+        $programsQuery = Program::with('pillar')
             ->where('created_by', $request->user()->id)
             ->where('is_archived', false)
-            ->where('status', '!=', 'rejected_fase1')
-            ->when($selectedPillar, fn ($query) => $query->where('pillar_id', $selectedPillar->id))
-            ->latest()
-            ->get();
+            ->when($selectedPillar, fn ($query) => $query->where('pillar_id', $selectedPillar->id));
+        $programs = TjslSubmissionStatusFilter::apply($programsQuery, $statusFilter, true)->latest()->get();
 
-        return view('admin.programs.index', compact('programs', 'selectedPillar'));
+        return view('admin.programs.index', [
+            'programs' => $programs,
+            'selectedPillar' => $selectedPillar,
+            'statusFilter' => $statusFilter,
+            'statusOptions' => TjslSubmissionStatusFilter::options(true),
+        ]);
     }
 
     public function create(): View

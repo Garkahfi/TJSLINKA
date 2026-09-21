@@ -7,7 +7,7 @@ $slides = [
  ['title'=>'PILAR HUKUM & TATA KELOLA','description'=>'Memperkuat tata kelola yang akuntabel, transparan, beretika, dan berkelanjutan.'],
 ];
 @endphp
-<section class="relative isolate flex {{ $compact ? 'min-h-[300px]' : 'min-h-[430px] md:min-h-[520px]' }} items-center justify-center overflow-hidden text-center text-white" @if($variant === 'animated-pillars') data-pillar-hero data-slides='@json($slides)' @endif>
+<section class="relative isolate flex {{ $compact ? 'min-h-75' : 'min-h-107.5 md:min-h-130' }} items-center justify-center overflow-hidden text-center text-white" @if($variant === 'animated-pillars') data-pillar-hero data-slides='@json($slides)' @endif>
     <video class="absolute inset-0 -z-20 h-full w-full object-cover" autoplay muted loop playsinline><source src="{{ asset($video) }}" type="video/mp4"></video>
     <div class="absolute inset-0 -z-10 bg-slate-950/50"></div>
     <div class="container-site transition-all duration-300">

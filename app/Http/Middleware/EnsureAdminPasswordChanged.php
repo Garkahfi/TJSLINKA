@@ -21,9 +21,14 @@ class EnsureAdminPasswordChanged
                 default => 'admin',
             };
 
-            if (! $request->routeIs($prefix.'.logout', $prefix.'.password.edit', $prefix.'.password.update')
-                && ! ($prefix !== 'pumk-admin' && $request->routeIs($prefix.'.profile'))) {
-                return redirect()->route($prefix === 'pumk-admin' ? $prefix.'.password.edit' : $prefix.'.profile')
+            if (! $request->routeIs(
+                $prefix.'.logout',
+                $prefix.'.password.edit',
+                $prefix.'.password.update',
+                $prefix.'.profile',
+                $prefix.'.profile.update',
+            )) {
+                return redirect()->route($prefix.'.profile')
                     ->with('password_change_required', 'Ganti password sementara sebelum melanjutkan.');
             }
         }
