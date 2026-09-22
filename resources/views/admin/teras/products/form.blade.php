@@ -43,7 +43,7 @@
                 <span><strong>Aktif / tampil di publik</strong><br><small class="text-slate-500">Nonaktifkan jika produk sedang tidak tersedia tanpa menghapus data.</small></span>
             </label>
 
-            <button class="w-full rounded-lg bg-[#2653ff] px-5 py-3 font-semibold text-white hover:bg-[#1f46dc]">Simpan</button>
+            <button class="w-full rounded-lg bg-action-primary px-5 py-3 font-semibold text-white hover:bg-action-primary-hover">Simpan</button>
         </form>
     </div>
 </x-layouts.admin>

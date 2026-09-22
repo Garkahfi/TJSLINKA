@@ -368,6 +368,7 @@ class PumkMitraManagementTest extends TestCase
         $excel->assertOk()->assertHeader('content-type', 'application/vnd.ms-excel; charset=UTF-8');
         $this->assertStringContainsString('<?mso-application progid="Excel.Sheet"?>', $excel->getContent());
         $this->assertStringContainsString('KARTU PIUTANG', $excel->getContent());
+        $this->assertNotFalse(simplexml_load_string($excel->getContent()), 'Ekspor Excel harus berupa SpreadsheetML yang valid.');
 
         $pdf = $this->get(route('pumk-admin.mitra.kartu.pdf', [$mitra, $pinjaman]));
         $pdf->assertOk()->assertHeader('content-type', 'application/pdf');

@@ -123,6 +123,30 @@ class PumkYearAndContractDocumentTest extends TestCase
         $this->get(route('pumk-admin.mitra.dokumen.view', [$mitra, $other, $document]))->assertNotFound();
     }
 
+    public function test_contract_document_accepts_up_to_150_mb_and_rejects_larger_files(): void
+    {
+        Storage::fake('local');
+        $this->actingAs($this->user('pumk_admin'), 'pumk');
+        [$mitra, $pinjaman] = $this->loan();
+
+        $this->put(route('pumk-admin.mitra.update', $mitra), [
+            'nama_mitra' => $mitra->nama_mitra,
+            'reschedule_ke2' => 'RS/150MB',
+            'dokumen_reschedule_2' => UploadedFile::fake()->create('reschedule-150mb.pdf', 150 * 1024, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('pumk_pinjaman_dokumen', [
+            'pinjaman_id' => $pinjaman->id,
+            'jenis_dokumen' => 'reschedule_2',
+        ]);
+
+        $this->put(route('pumk-admin.mitra.update', $mitra), [
+            'nama_mitra' => $mitra->nama_mitra,
+            'reschedule_ke2' => 'RS/150MB',
+            'dokumen_reschedule_2' => UploadedFile::fake()->create('reschedule-terlalu-besar.pdf', (150 * 1024) + 1, 'application/pdf'),
+        ])->assertSessionHasErrors('dokumen_reschedule_2');
+    }
+
     /** @return array{PumkMitra, PumkPinjaman} */
     private function loan(): array
     {

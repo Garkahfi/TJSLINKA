@@ -52,7 +52,7 @@
                         </div>
                     @endforeach
                 </div>
-                <button id="add-package-item" type="button" class="mt-3 rounded-lg bg-[#2653ff] px-4 py-2 text-sm font-semibold text-white">+ Tambah Item</button>
+                <button id="add-package-item" type="button" class="mt-3 rounded-lg bg-action-primary px-4 py-2 text-sm font-semibold text-white">+ Tambah Item</button>
                 @error('isi_paket') <small class="block text-red-600">{{ $message }}</small> @enderror
                 @error('isi_paket.*') <small class="block text-red-600">{{ $message }}</small> @enderror
             </fieldset>
@@ -68,7 +68,7 @@
                 <span><strong>Aktif / tampil di publik</strong><br><small class="text-slate-500">Nonaktifkan bila paket belum tersedia tanpa menghapus data.</small></span>
             </label>
 
-            <button class="w-full rounded-lg bg-[#2653ff] px-5 py-3 font-semibold text-white hover:bg-[#1f46dc]">Simpan</button>
+            <button class="w-full rounded-lg bg-action-primary px-5 py-3 font-semibold text-white hover:bg-action-primary-hover">Simpan</button>
         </form>
     </div>
 

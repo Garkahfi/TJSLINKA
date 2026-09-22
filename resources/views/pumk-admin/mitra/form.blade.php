@@ -134,12 +134,10 @@
                         <input id="nilai_angsuran_bulanan" type="number" min="0" step="0.01" name="nilai_angsuran_bulanan" class="pumk-input" value="{{ old('nilai_angsuran_bulanan', $pinjaman->nilai_angsuran_bulanan) }}">
                     </div>
                 </div>
-                <p class="pumk-note">Sisa pinjaman, nilai tunggakan, dan kolektibilitas dihitung otomatis oleh sistem. Admin tidak perlu mengisinya.</p>
             </section>
 
             <section class="pumk-card pumk-section">
                 <h2 class="pumk-section-title">Dokumen SPJ dan Reschedule</h2>
-                <p class="pumk-note" style="margin-bottom:16px">Dokumen disimpan privat. Format PDF/JPG/JPEG/PNG, maksimal {{ number_format(config('pumk.contract_document_max_kb') / 1024, 0, ',', '.') }} MB. Upload baru akan mengganti dokumen lama pada jenis yang sama.</p>
                 <div class="pumk-form-grid">
                     @foreach($documentTypes as $type => $label)
                         @php
@@ -209,7 +207,6 @@
                         <textarea id="jaminan_alamat" name="jaminan_alamat" class="pumk-textarea" maxlength="3000">{{ old('jaminan_alamat', $pinjaman->jaminan_alamat) }}</textarea>
                     </div>
                 </div>
-                <p class="pumk-note">Isian reschedule dan jaminan boleh kosong jika memang tidak berlaku pada mitra tersebut.</p>
             </section>
 
             <div class="pumk-form-actions">

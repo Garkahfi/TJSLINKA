@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'contract_document_max_kb' => (int) env('PUMK_CONTRACT_DOCUMENT_MAX_KB', 10240),
+    'contract_document_max_kb' => (int) env('PUMK_CONTRACT_DOCUMENT_MAX_KB', 153600),
     'payment_proof_max_kb' => (int) env('PUMK_PAYMENT_PROOF_MAX_KB', 10240),
     'admin' => [
         'username' => env('PUMK_ADMIN_USERNAME', 'labubu123'),

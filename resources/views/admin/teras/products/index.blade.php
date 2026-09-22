@@ -5,7 +5,7 @@
                 <h1 class="text-3xl font-bold text-slate-900">Produk Teras TJSL</h1>
                 <p class="mt-1 text-sm text-slate-500">Produk aktif langsung tampil di halaman publik Teras TJSL.</p>
             </div>
-            <a href="{{ route('admin.teras.products.create') }}" class="rounded-lg bg-[#2653ff] px-5 py-3 font-semibold text-white hover:bg-[#1f46dc]">
+            <a href="{{ route('admin.teras.products.create') }}" class="rounded-lg bg-action-primary px-5 py-3 font-semibold text-white hover:bg-action-primary-hover">
                 + Tambah Produk
             </a>
         </div>
@@ -48,7 +48,7 @@
                             </td>
                             <td class="px-5 py-3">
                                 <div class="flex justify-end gap-2">
-                                    <a href="{{ route('admin.teras.products.edit', $product) }}" class="rounded border border-[#2653ff] px-3 py-1.5 text-xs font-semibold text-[#2653ff]">Edit</a>
+                                    <a href="{{ route('admin.teras.products.edit', $product) }}" class="rounded border border-action-primary px-3 py-1.5 text-xs font-semibold text-action-primary">Edit</a>
                                     <form method="POST" action="{{ route('admin.teras.products.destroy', $product) }}" onsubmit="return confirm('Hapus produk ini?')">
                                         @csrf
                                         @method('DELETE')

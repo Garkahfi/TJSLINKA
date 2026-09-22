@@ -687,6 +687,8 @@ class PumkMitraController extends Controller
     /** @return array<string, mixed> */
     private function validateMitra(Request $request): array
     {
+        $contractDocumentMaxMb = (int) ceil((int) config('pumk.contract_document_max_kb') / 1024);
+
         return $request->validate([
             'nama_mitra' => ['required', 'string', 'max:255'],
             'jenis_usaha' => ['nullable', 'string', 'max:255'],
@@ -724,6 +726,12 @@ class PumkMitraController extends Controller
             'dokumen_reschedule_2' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:'.config('pumk.contract_document_max_kb')],
             'dokumen_reschedule_3' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:'.config('pumk.contract_document_max_kb')],
             'dokumen_reschedule_4' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:'.config('pumk.contract_document_max_kb')],
+        ], [
+            'dokumen_spj_awal.max' => "Ukuran Dokumen SPJ Awal maksimal {$contractDocumentMaxMb} MB.",
+            'dokumen_reschedule_1.max' => "Ukuran Dokumen Reschedule Ke-1 maksimal {$contractDocumentMaxMb} MB.",
+            'dokumen_reschedule_2.max' => "Ukuran Dokumen Reschedule Ke-2 maksimal {$contractDocumentMaxMb} MB.",
+            'dokumen_reschedule_3.max' => "Ukuran Dokumen Reschedule Ke-3 maksimal {$contractDocumentMaxMb} MB.",
+            'dokumen_reschedule_4.max' => "Ukuran Dokumen Reschedule Ke-4 maksimal {$contractDocumentMaxMb} MB.",
         ]);
     }
 
