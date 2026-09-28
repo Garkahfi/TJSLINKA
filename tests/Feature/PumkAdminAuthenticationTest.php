@@ -12,7 +12,7 @@ class PumkAdminAuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_pumk_admin_can_login_only_through_the_pumk_guard(): void
+    public function test_pumk_admin_login_uses_web_and_pumk_guards_for_the_same_account(): void
     {
         $pumkAdmin = $this->user('pumk_admin', 'admin-pumk', 'PumkPassword2026');
 
@@ -22,6 +22,7 @@ class PumkAdminAuthenticationTest extends TestCase
         ])->assertRedirect(route('pumk-admin.home'));
 
         $this->assertAuthenticatedAs($pumkAdmin, 'pumk');
+        $this->assertAuthenticatedAs($pumkAdmin, 'web');
         $this->assertGuest('admin');
         $this->get(route('pumk-admin.home'))
             ->assertOk()
@@ -29,7 +30,7 @@ class PumkAdminAuthenticationTest extends TestCase
             ->assertDontSee('Overview Program TJSL');
     }
 
-    public function test_admin_tjsl_credentials_are_rejected_by_pumk_login(): void
+    public function test_legacy_pumk_login_url_routes_admin_tjsl_to_its_own_dashboard(): void
     {
         $this->user('admin', 'admin-tjsl', 'AdminPassword2026');
 
@@ -38,13 +39,12 @@ class PumkAdminAuthenticationTest extends TestCase
                 'username' => 'admin-tjsl',
                 'password' => 'AdminPassword2026',
             ])
-            ->assertRedirect(route('pumk-admin.login'))
-            ->assertSessionHasErrors('username');
+            ->assertRedirect(route('admin.home'));
 
         $this->assertGuest('pumk');
     }
 
-    public function test_pumk_admin_credentials_are_rejected_by_tjsl_admin_login(): void
+    public function test_legacy_admin_login_url_routes_pumk_admin_to_its_own_dashboard(): void
     {
         $this->user('pumk_admin', 'admin-pumk', 'PumkPassword2026');
 
@@ -53,23 +53,22 @@ class PumkAdminAuthenticationTest extends TestCase
                 'username' => 'admin-pumk',
                 'password' => 'PumkPassword2026',
             ])
-            ->assertRedirect(route('admin.login'))
-            ->assertSessionHasErrors('username');
+            ->assertRedirect(route('pumk-admin.home'));
 
         $this->assertGuest('admin');
     }
 
-    public function test_role_middleware_blocks_a_user_forced_into_the_wrong_guard(): void
+    public function test_role_middleware_blocks_cross_panel_access(): void
     {
         $admin = $this->user('admin', 'admin-tjsl', 'AdminPassword2026');
 
-        $this->actingAs($admin, 'pumk')
+        $this->actingAs($admin, 'web')
             ->get(route('pumk-admin.home'))
             ->assertForbidden();
 
         $pumkAdmin = $this->user('pumk_admin', 'admin-pumk', 'PumkPassword2026');
 
-        $this->actingAs($pumkAdmin, 'admin')
+        $this->actingAs($pumkAdmin, 'web')
             ->get(route('admin.home'))
             ->assertForbidden();
     }
@@ -86,7 +85,7 @@ class PumkAdminAuthenticationTest extends TestCase
         $this->assertGuest('pumk');
     }
 
-    public function test_admin_and_pumk_sessions_can_coexist_and_pumk_logout_does_not_logout_admin(): void
+    public function test_switching_to_pumk_account_replaces_admin_and_logout_ends_all_access(): void
     {
         $admin = $this->user('admin', 'admin-tjsl', 'AdminPassword2026');
         $pumkAdmin = $this->user('pumk_admin', 'admin-pumk', 'PumkPassword2026');
@@ -101,17 +100,19 @@ class PumkAdminAuthenticationTest extends TestCase
             'password' => 'PumkPassword2026',
         ])->assertRedirect(route('pumk-admin.home'));
 
-        $this->assertAuthenticatedAs($admin, 'admin');
+        $this->assertGuest('admin');
+        $this->assertAuthenticatedAs($pumkAdmin, 'web');
         $this->assertAuthenticatedAs($pumkAdmin, 'pumk');
-        $this->get(route('admin.home'))->assertOk();
+        $this->get(route('admin.home'))->assertForbidden();
         $this->get(route('pumk-admin.home'))->assertOk();
 
         $this->post(route('pumk-admin.logout'))
-            ->assertRedirect(route('pumk-admin.login'));
+            ->assertRedirect(route('login'));
 
         $this->assertGuest('pumk');
-        $this->assertAuthenticatedAs($admin, 'admin');
-        $this->get(route('admin.home'))->assertOk();
+        $this->assertGuest('admin');
+        $this->assertGuest('web');
+        $this->get(route('admin.home'))->assertRedirect(route('login'));
     }
 
     public function test_pumk_admin_profile_uses_the_shared_profile_and_password_forms(): void

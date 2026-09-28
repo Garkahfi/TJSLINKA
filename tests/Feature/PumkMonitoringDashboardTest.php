@@ -276,9 +276,9 @@ class PumkMonitoringDashboardTest extends TestCase
         $this->assertTrue($data['rka_bulanan']->every(fn (array $month): bool => $month['nilai'] === null));
     }
 
-    public function test_public_home_contains_bri_cache_and_live_pumk_dashboard(): void
+    public function test_public_monitoring_keeps_bri_and_internal_pumk_on_separate_pages(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => 'admin', 'is_active' => true, 'must_change_password' => false]);
         [$mitra] = $this->mitra('Pertanian');
         $this->loan($mitra, 'home', 2000, 0, 500, 'Lancar');
         $briMitra = PumkBriMitra::create([
@@ -309,7 +309,7 @@ class PumkMonitoringDashboardTest extends TestCase
             'profil_sumber_terverifikasi' => true,
         ]);
 
-        $this->actingAs($user, 'web')->get('/')
+        $this->actingAs($user, 'web')->get(route('monitoring.inka'))
             ->assertOk()
             ->assertSee('Dashboard PUMK PT. INKA (Persero)')
             ->assertSee('Program PUMK PT. INKA (Persero)')
@@ -320,6 +320,14 @@ class PumkMonitoringDashboardTest extends TestCase
             ->assertSee('Sektor Ekonomi Portofolio Mitra Binaan')
             ->assertSee('Kualitas Piutang Mitra Binaan')
             ->assertSee('Sebaran PUMK per Provinsi')
+            ->assertSee('id="pumk-live-sector-chart"', false)
+            ->assertSee('id="pumk-live-quality-chart"', false)
+            ->assertSee('id="pumk-live-province-chart"', false)
+            ->assertSee('Rp2.000')
+            ->assertDontSee('id="pumk-bri-map"', false);
+
+        $this->get(route('monitoring.bri', ['pumk_year' => 2026]))
+            ->assertOk()
             ->assertSee('Sebaran Penyaluran Dana PUMK (BRI)')
             ->assertSee('data-pumk-map-state', false)
             ->assertSee('data-pumk-region-row', false)
@@ -328,11 +336,7 @@ class PumkMonitoringDashboardTest extends TestCase
             ->assertSee('1 wilayah belum memiliki pasangan geometri dan tetap tercatat di tabel.')
             ->assertSee('indonesia-kabupaten-kota.geojson')
             ->assertDontSee('Koordinat geografis belum tersedia pada sumber Excel')
-            ->assertSee('id="pumk-live-sector-chart"', false)
-            ->assertSee('id="pumk-live-quality-chart"', false)
-            ->assertSee('id="pumk-live-province-chart"', false)
-            ->assertSee('Rp2.000')
-            ->assertSee('Rp500');
+            ->assertDontSee('id="pumk-live-sector-chart"', false);
     }
 
     public function test_bri_geo_reference_preserves_city_and_regency_distinction(): void

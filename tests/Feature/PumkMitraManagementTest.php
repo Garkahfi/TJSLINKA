@@ -19,10 +19,10 @@ class PumkMitraManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guest_is_redirected_to_the_pumk_login(): void
+    public function test_guest_is_redirected_to_the_shared_login(): void
     {
         $this->get(route('pumk-admin.mitra.index'))
-            ->assertRedirect(route('pumk-admin.login'));
+            ->assertRedirect(route('login'));
     }
 
     public function test_list_supports_server_side_filters_without_exposing_pii(): void
@@ -52,7 +52,13 @@ class PumkMitraManagementTest extends TestCase
     public function test_pumk_admin_can_create_a_mitra_and_pii_is_encrypted(): void
     {
         $admin = $this->pumkAdmin();
-        $this->actingAs($admin, 'pumk');
+        $admin->update(['username' => 'pumk-actor']);
+        $this->post(route('login.store'), [
+            'username' => 'pumk-actor',
+            'password' => 'password',
+        ])->assertRedirect(route('pumk-admin.home'));
+        $this->assertAuthenticatedAs($admin, 'web');
+        $this->assertAuthenticatedAs($admin, 'pumk');
         [$wilayah, $sektor] = $this->references();
 
         $response = $this->post(route('pumk-admin.mitra.store'), [

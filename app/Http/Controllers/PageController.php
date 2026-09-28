@@ -13,8 +13,10 @@ use App\Models\TerasProduk;
 use App\Models\TpbDashboard;
 use App\Models\WilayahOperasional;
 use App\Services\Monitoring\PumkDashboardService;
+use App\Services\Monitoring\PumkInternalMonitoringService;
 use App\Services\ProgramMonitoringService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
@@ -28,6 +30,7 @@ class PageController extends Controller
     public function __construct(
         private readonly ProgramMonitoringService $programMonitoring,
         private readonly PumkDashboardService $pumkDashboard,
+        private readonly PumkInternalMonitoringService $pumkInternalMonitoring,
     ) {}
 
     private function data(string $file): array
@@ -35,11 +38,17 @@ class PageController extends Controller
         return json_decode(file_get_contents(resource_path("data/{$file}.json")), true) ?? [];
     }
 
-    public function home(Request $request): View
+    public function home(Request $request): View|RedirectResponse
     {
-        $requestedPumkYear = $request->integer('pumk_year') ?: null;
-        $pumkBriDashboard = $this->pumkDashboard->bri($requestedPumkYear);
-        $pumkLiveDashboard = $this->pumkDashboard->live();
+        if ($request->has('pumk_year')) {
+            return redirect()->route('monitoring.bri', ['pumk_year' => $request->query('pumk_year')]);
+        }
+
+        return $this->monitoringTjsl();
+    }
+
+    public function monitoringTjsl(): View
+    {
         $perPilar = Pillar::query()
             ->orderBy('id')
             ->get()
@@ -79,9 +88,10 @@ class PageController extends Controller
             ->filter()
             ->map(fn ($timestamp) => Carbon::parse($timestamp))
             ->sortDesc()
-            ->first() ?? now();
+            ->first();
 
         return view('pages.home', [
+            'dashboardType' => 'tjsl',
             'faqs' => $this->data('faqs'),
             'perPilar' => $perPilar,
             'perWilayah' => $perWilayah,
@@ -91,8 +101,28 @@ class PageController extends Controller
             'totalRealisasi' => $totalRealisasi,
             'penyerapan' => $penyerapan,
             'dashboardUpdatedAt' => $dashboardUpdatedAt,
-            'pumkBriDashboard' => $pumkBriDashboard,
-            'pumkLiveDashboard' => $pumkLiveDashboard,
+        ]);
+    }
+
+    public function monitoringBri(Request $request): View
+    {
+        $validated = $request->validate(['pumk_year' => ['nullable', 'integer', 'between:1900,2100']]);
+
+        return view('pages.home', [
+            'dashboardType' => 'bri',
+            'faqs' => $this->data('faqs'),
+            'pumkBriDashboard' => $this->pumkDashboard->bri(isset($validated['pumk_year']) ? (int) $validated['pumk_year'] : null),
+        ]);
+    }
+
+    public function monitoringInka(Request $request): View
+    {
+        $validated = $request->validate(['year' => ['nullable', 'integer', 'between:1900,2100']]);
+
+        return view('pages.home', [
+            'dashboardType' => 'inka',
+            'faqs' => $this->data('faqs'),
+            'pumkLiveDashboard' => $this->pumkInternalMonitoring->report(isset($validated['year']) ? (int) $validated['year'] : null),
         ]);
     }
 

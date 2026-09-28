@@ -24,7 +24,7 @@ class PublicAuthenticationTest extends TestCase
             ->assertSee('action="'.route('login.store').'"', false);
     }
 
-    public function test_the_same_credentials_can_open_public_and_admin_dashboards_through_different_guards(): void
+    public function test_one_login_opens_admin_dashboard_and_monitoring_with_the_same_account(): void
     {
         $admin = User::factory()->create([
             'username' => 'TJSLINKA',
@@ -37,15 +37,10 @@ class PublicAuthenticationTest extends TestCase
         $this->post(route('login.store'), [
             'username' => 'TJSLINKA',
             'password' => 'TJSLHPVICTUS',
-        ])->assertRedirect(route('home'));
-        $this->assertAuthenticatedAs($admin, 'web');
-        $this->get(route('home'))->assertOk();
-
-        $this->post(route('admin.login.store'), [
-            'username' => 'TJSLINKA',
-            'password' => 'TJSLHPVICTUS',
         ])->assertRedirect(route('admin.home'));
+        $this->assertAuthenticatedAs($admin, 'web');
         $this->assertAuthenticatedAs($admin, 'admin');
+        $this->get(route('home'))->assertOk();
         $this->get(route('admin.home'))->assertOk();
     }
 
@@ -77,12 +72,14 @@ class PublicAuthenticationTest extends TestCase
             'no_telephone' => '08123456789',
             'jabatan' => 'Karyawan',
             'alamat' => 'Madiun',
+            'role' => 'super_admin',
         ])->assertRedirect();
 
         $this->assertDatabaseHas('users', [
             'id' => $admin->id,
             'name' => 'User Publik',
             'email' => 'public@example.com',
+            'role' => 'admin',
         ]);
     }
 }

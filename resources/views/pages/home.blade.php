@@ -1,4 +1,10 @@
 @php
+    $perPilar = $perPilar ?? collect();
+    $perWilayah = $perWilayah ?? collect();
+    $bidangPrioritas = $bidangPrioritas ?? collect();
+    $tpbDashboard = $tpbDashboard ?? collect();
+    $pumkBriDashboard = $pumkBriDashboard ?? [];
+    $pumkLiveDashboard = $pumkLiveDashboard ?? [];
     $perPilarChart = $perPilar->map(fn ($item) => [
         'nama' => $item->pillar?->name ?? 'Pilar lainnya',
         'warna' => $item->pillar?->color_hex ?? '#64748b',
@@ -25,7 +31,7 @@
         'realisasi' => (float) $item->realisasi_anggaran,
     ])->values();
 
-    $formatRupiah = fn ($value) => 'Rp'.number_format((float) $value, 0, ',', '.');
+    $formatRupiah = fn ($value) => $value === null ? 'Belum tersedia' : 'Rp'.number_format((float) $value, 0, ',', '.');
     $briYear = (int) ($pumkBriDashboard['year'] ?? now()->year);
     $briMonth = (int) ($pumkBriDashboard['latest_month'] ?? 0);
     $briHasSnapshot = (bool) ($pumkBriDashboard['ketersediaan']['snapshot'] ?? false);
@@ -33,22 +39,23 @@
     $briHasRealisasi = (bool) ($pumkBriDashboard['ketersediaan']['realisasi'] ?? false);
     $briUpdatedAt = filled($pumkBriDashboard['updated_at'] ?? null)
         ? \Illuminate\Support\Carbon::parse($pumkBriDashboard['updated_at'])
-        : ($briMonth > 0
-            ? \Illuminate\Support\Carbon::create($briYear, $briMonth, 1)->endOfMonth()
-            : now());
+        : null;
     $liveUpdatedAt = filled($pumkLiveDashboard['updated_at'] ?? null)
         ? \Illuminate\Support\Carbon::parse($pumkLiveDashboard['updated_at'])
-        : now();
+        : null;
 @endphp
 
 @push('head')
+    @if(in_array($dashboardType, ['tjsl', 'bri'], true))
     <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
         crossorigin=""
     >
+    @endif
     <style>
+        .monitoring-dashboard-nav{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:18px 20px;background:#f3f3f3}.monitoring-dashboard-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:42px;border:1px solid #183153;border-radius:8px;background:#fff;padding:8px 18px;color:#183153;font-weight:700;text-decoration:none}.monitoring-dashboard-nav a[aria-current="page"]{background:#183153;color:#fff}.monitoring-dashboard-nav a:focus-visible{outline:3px solid #2563eb;outline-offset:3px}.monitoring-data-note{margin:12px 0;border:1px solid #eab308;border-radius:6px;background:#fefce8;padding:10px 14px;color:#713f12;font-size:12px;line-height:1.5}.monitoring-year-bar{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:12px 0}.monitoring-year-bar label{font-size:12px;font-weight:700}.monitoring-year-bar select{min-width:125px;border:1px solid #aebed4;border-radius:5px;padding:8px;background:#fff}.monitoring-year-bar button{border:0;border-radius:5px;background:#183153;padding:8px 14px;color:#fff;cursor:pointer}@media(max-width:600px){.monitoring-dashboard-nav{display:grid;grid-template-columns:1fr}.monitoring-dashboard-nav a{width:100%}.monitoring-year-bar{justify-content:stretch;flex-wrap:wrap}}
         .tjsl-report-section{background:#f3f3f3;padding:48px 0}.tjsl-report-frame{border:2px solid #202020;background:#fff;padding:16px 20px 20px;color:#111827}.report-header{display:grid;grid-template-columns:190px minmax(0,1fr) 160px;align-items:center;gap:20px}.report-logo{display:block;width:auto;object-fit:contain}.report-logo.danantara{height:50px}.report-logo.inka{height:44px;justify-self:end}.report-title{margin:0;color:#a92d2f;font-size:25px;line-height:1.2;font-weight:700;text-align:center}.report-subhead{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:15px 0 10px;color:#6b7280;font-size:11px}.report-download{border:0;background:transparent;padding:0;color:#b42c30;font:600 11px Poppins,sans-serif;cursor:pointer}.report-download:hover{text-decoration:underline}.report-filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;margin-bottom:14px}.report-filter{width:100%;height:31px;box-sizing:border-box;border:1px solid #ba5759;border-radius:9px;background:#fff;padding:4px 12px;color:#a92d2f;font:500 11px Poppins,sans-serif;outline:none}.report-filter:focus{box-shadow:0 0 0 2px rgba(169,45,47,.15)}.report-grid{display:grid;grid-template-columns:1.02fr 1.03fr 2.05fr;grid-template-areas:"summary pillar tpb" "gauge pillar tpb" "priority priority regions" "featured featured regions";gap:10px}.report-card{box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:10px;box-shadow:0 2px 5px rgba(15,23,42,.13);overflow:hidden}.report-card-title{margin:0 0 8px;font-size:12px;line-height:1.35;font-weight:600;text-align:center}.report-summary{grid-area:summary;display:grid;grid-template-columns:1fr 1fr;gap:7px}.report-total-card{display:grid;min-height:57px;place-content:center;border:1px solid #e5e7eb;border-radius:9px;background:#fff;text-align:center;box-shadow:0 2px 5px rgba(15,23,42,.12)}.report-total-card span{font-size:11px}.report-total-card strong{margin-top:3px;color:#b13235;font-size:17px;line-height:1.1;font-weight:500}.report-gauge-card{grid-area:gauge}.report-gauge{position:relative;max-width:230px;height:132px;margin:0 auto}.report-gauge svg{display:block;width:100%;height:118px}.report-gauge-center{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);text-align:center;white-space:nowrap}.report-gauge-center span{display:block;color:#6b7280;font-size:11px}.report-gauge-center strong{display:block;margin-top:2px;font-size:25px;line-height:1}.report-gauge-scale{display:flex;justify-content:space-between;margin:-13px 15px 0;color:#6b7280;font-size:10px}.report-pillar-card{grid-area:pillar}.report-tpb-card{grid-area:tpb}.report-chart{position:relative;height:235px}.report-chart canvas,.pumk-chart canvas,.pumk-wide-chart canvas,.region-chart canvas{image-rendering:auto}.report-priority-card{grid-area:priority}.report-featured-card{grid-area:featured}.report-regions-card{grid-area:regions}.report-regions-content{display:grid;grid-template-columns:1.05fr 1fr;gap:12px;height:100%}.region-map{z-index:0;width:100%;height:100%;min-height:270px;overflow:hidden;border-radius:0;background:#e2e8f0}.report-table-wrap{overflow:auto}.report-table{width:100%;border-collapse:collapse;font-size:9px}.report-table th{background:#a92d2f;color:#fff;font-weight:600}.report-table.navy th{background:#0c2856}.report-table th,.report-table td{padding:5px 7px;border-bottom:1px solid #e5e7eb;text-align:left;white-space:nowrap}.report-table th:not(:first-child),.report-table td:not(:first-child){text-align:right}.report-table tbody tr:last-child td{border-bottom:0}.report-table .progress-cell{color:#111;text-align:center!important;font-weight:600}.report-empty{text-align:center!important;color:#6b7280;padding:24px 8px!important}.report-pillar-card .report-card-title,.report-tpb-card .report-card-title{min-height:30px;display:grid;place-items:center}.report-pillar-card .report-chart,.report-tpb-card .report-chart{height:240px}
 
         .pumk-section{background:#f3f3f3;padding:12px 0 56px}
@@ -95,11 +102,13 @@
 
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    @if(in_array($dashboardType, ['tjsl', 'bri'], true))
     <script
         src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""
     ></script>
+    @endif
     <script>
         (function () {
             const dashboardData = document.getElementById('home-dashboard-data');
@@ -400,10 +409,16 @@
             const moneyTooltip = {
                 callbacks: {
                     label: function (context) {
-                        return context.label + ': ' + rupiah.format(context.raw || 0);
+                        return context.label + ': ' + (context.raw == null ? 'Belum tersedia' : rupiah.format(context.raw));
                     },
                 },
             };
+
+            function categoryColor(label) {
+                let hash = 0;
+                for (const char of String(label)) hash = ((hash * 31) + char.charCodeAt(0)) >>> 0;
+                return pumkColors[hash % pumkColors.length];
+            }
 
             function renderDistribution(canvasId, items, type, colors) {
                 const canvas = document.getElementById(canvasId);
@@ -415,10 +430,10 @@
                         labels: items.map(function (item) { return item.label; }),
                         datasets: [{
                             data: items.map(function (item) { return item.nilai; }),
-                            backgroundColor: items.map(function (_, index) {
+                            backgroundColor: items.map(function (item, index) {
                                 return Array.isArray(colors) && colors[index]
                                     ? colors[index]
-                                    : pumkColors[index % pumkColors.length];
+                                    : categoryColor(item.label);
                             }),
                             borderColor: '#ffffff',
                             borderWidth: 1,
@@ -442,7 +457,7 @@
                     data: {
                         labels: trend.labels,
                         datasets: trend.datasets.map(function (dataset, index) {
-                            const color = pumkColors[index % pumkColors.length];
+                            const color = categoryColor(dataset.label);
                             return Object.assign({}, dataset, {
                                 borderColor: color,
                                 backgroundColor: type === 'bar' ? color : color + '24',
@@ -461,7 +476,7 @@
                             tooltip: {
                                 callbacks: {
                                     label: function (context) {
-                                        return context.dataset.label + ': ' + rupiah.format(context.raw || 0);
+                                        return context.dataset.label + ': ' + (context.raw == null ? 'Belum tersedia' : rupiah.format(context.raw));
                                     },
                                 },
                             },
@@ -522,7 +537,7 @@
                             tooltip: {
                                 callbacks: {
                                     label: function (context) {
-                                        return context.dataset.label + ': ' + rupiah.format(context.raw || 0);
+                                        return context.dataset.label + ': ' + (context.raw == null ? 'Belum tersedia' : rupiah.format(context.raw));
                                     },
                                 },
                             },
@@ -830,12 +845,16 @@
 <x-layouts.app title="Home — LENSA TJSL INKA">
     <template
         id="home-dashboard-data"
+        @if($dashboardType === 'tjsl')
         data-per-pilar="{{ $perPilarChart->toJson() }}"
         data-per-wilayah="{{ $perWilayahMap->toJson() }}"
         data-bidang-prioritas="{{ $bidangPrioritasChart->toJson() }}"
         data-per-tpb="{{ $tpbChart->toJson() }}"
+        @elseif($dashboardType === 'bri')
         data-pumk-bri="{{ collect($pumkBriDashboard)->except('updated_at')->toJson() }}"
+        @elseif($dashboardType === 'inka')
         data-pumk-live="{{ collect($pumkLiveDashboard)->except('updated_at')->toJson() }}"
+        @endif
     ></template>
     <x-hero-video
         video="videos/waterfall-bg.mp4"
@@ -844,6 +863,13 @@
         description="Lensa TJSL merupakan wujud nyata integrasi dan transparansi informasi atas kontribusi Program Tanggung Jawab Sosial dan Lingkungan (TJSL) dalam pelaksanaan program berkelanjutan dan mitigasi risiko PT Industri Kereta Api (Persero)."
     />
 
+    <nav class="monitoring-dashboard-nav" aria-label="Pilih dashboard monitoring">
+        <a href="{{ route('monitoring.tjsl') }}" @if($dashboardType === 'tjsl') aria-current="page" @endif>Realisasi TJSL</a>
+        <a href="{{ route('monitoring.bri') }}" @if($dashboardType === 'bri') aria-current="page" @endif>PUMK BRI</a>
+        <a href="{{ route('monitoring.inka') }}" @if($dashboardType === 'inka') aria-current="page" @endif>PUMK PT INKA</a>
+    </nav>
+
+    @if($dashboardType === 'tjsl')
     <section class="tjsl-report-section">
         <div class="container-site">
             <div class="tjsl-report-frame">
@@ -854,7 +880,7 @@
                         class="report-logo danantara"
                     >
                     <h2 class="report-title">
-                        Realisasi Anggaran Program TJSL Tahun {{ $dashboardUpdatedAt->year }}
+                        Realisasi Anggaran Program TJSL
                     </h2>
                     <img
                         src="{{ asset('images/logo/inka.png') }}"
@@ -864,7 +890,7 @@
                 </header>
 
                 <div class="report-subhead">
-                    <span>Update: {{ $dashboardUpdatedAt->locale('id')->translatedFormat('d M Y') }}</span>
+                    <span>Pembaruan terakhir: {{ $dashboardUpdatedAt ? $dashboardUpdatedAt->timezone('Asia/Jakarta')->locale('id')->translatedFormat('d M Y H.i').' WIB' : 'Belum tersedia' }}</span>
                     <button type="button" class="report-download" onclick="window.print()">
                         Download Laporan
                     </button>
@@ -981,7 +1007,9 @@
             </div>
         </div>
     </section>
+    @endif
 
+    @if($dashboardType === 'bri')
     <section id="dashboard-pumk-bri" class="pumk-section">
         <div class="container-site">
             <div class="pumk-report-frame pumk-bri-frame">
@@ -990,8 +1018,12 @@
                     <h2 class="pumk-report-title pumk-bri-report-title">Dashboard Program PUMK BRI</h2>
                     <img src="{{ asset('images/logo/inka.png') }}" alt="PT INKA" class="report-logo inka">
                 </header>
+                <div class="pumk-meta">
+                    <span>Periode data: {{ $briHasSnapshot ? ($pumkBriDashboard['latest_month_label'].' '.$briYear) : 'Belum tersedia' }}</span>
+                    <span>Pembaruan terakhir: {{ $briUpdatedAt ? $briUpdatedAt->timezone('Asia/Jakarta')->locale('id')->translatedFormat('d F Y H.i').' WIB' : 'Belum tersedia' }}</span>
+                </div>
                 <div class="pumk-bri-filter-bar">
-                    <form method="GET" action="{{ route('home') }}#dashboard-pumk-bri" class="pumk-year-form">
+                    <form method="GET" action="{{ route('monitoring.bri') }}" class="pumk-year-form">
                         <label for="pumk-dashboard-year">Tahun</label>
                         <select
                             id="pumk-dashboard-year"
@@ -1223,7 +1255,9 @@
             </div>
         </div>
     </section>
+    @endif
 
+    @if($dashboardType === 'inka')
     <section class="pumk-section pumk-live-section">
         <div class="container-site">
             <h2 class="pumk-heading">Dashboard PUMK PT. INKA (Persero)</h2>
@@ -1235,16 +1269,57 @@
                     <img src="{{ asset('images/logo/inka.png') }}" alt="PT INKA" class="report-logo inka">
                 </header>
 
+                <form method="GET" action="{{ route('monitoring.inka') }}" class="monitoring-year-bar">
+                    <label for="pumk-inka-year">Tahun laporan</label>
+                    <select id="pumk-inka-year" name="year">
+                        @if($pumkLiveDashboard['year'] !== null && ! in_array($pumkLiveDashboard['year'], $pumkLiveDashboard['years'], true))
+                            <option value="{{ $pumkLiveDashboard['year'] }}" selected>{{ $pumkLiveDashboard['year'] }} (belum tersedia)</option>
+                        @endif
+                        @forelse($pumkLiveDashboard['years'] as $year)
+                            <option value="{{ $year }}" @selected($year === $pumkLiveDashboard['year'])>{{ $year }}</option>
+                        @empty
+                            <option value="">Belum ada tahun data</option>
+                        @endforelse
+                    </select>
+                    <button type="submit">Tampilkan</button>
+                </form>
+
                 <div class="pumk-meta">
-                    <span>Update data: {{ $liveUpdatedAt->locale('id')->translatedFormat('d F Y H.i') }}</span>
+                    <span>Tahun {{ $pumkLiveDashboard['year'] ?? '—' }} · {{ $pumkLiveDashboard['as_of_date'] ? 'Posisi saldo per '.\Illuminate\Support\Carbon::parse($pumkLiveDashboard['as_of_date'])->locale('id')->translatedFormat('d F Y') : 'Data untuk periode ini belum tersedia' }}</span>
+                    <span>Pembaruan terakhir: {{ $liveUpdatedAt ? $liveUpdatedAt->timezone('Asia/Jakarta')->locale('id')->translatedFormat('d F Y H.i').' WIB' : 'Belum tersedia' }}</span>
+                </div>
+                <div class="pumk-meta">
                     <span>Sumber: database Kartu Piutang PUMK</span>
                 </div>
+
+                @if($pumkLiveDashboard['status'] === 'unavailable')
+                    <p class="monitoring-data-note">Data untuk periode ini belum tersedia. Tahun jadwal angsuran yang belum berjalan tidak dihitung sebagai realisasi.</p>
+                @elseif($pumkLiveDashboard['status'] === 'partial')
+                    <p class="monitoring-data-note">Data periode ini belum lengkap: {{ $pumkLiveDashboard['known_loans'] }} pinjaman dapat dihitung, {{ $pumkLiveDashboard['unknown_loans'] }} belum memiliki dasar saldo yang cukup. Angka yang tampil adalah subtotal, bukan total portofolio final.</p>
+                @endif
+                @if($pumkLiveDashboard['carried_from_previous_year'])
+                    <p class="monitoring-data-note">Saldo dibawa dari posisi terakhir {{ \Illuminate\Support\Carbon::parse($pumkLiveDashboard['as_of_date'])->locale('id')->translatedFormat('d F Y') }}; belum ada angsuran tercatat pada {{ $pumkLiveDashboard['year'] }}.</p>
+                @endif
+                @if($pumkLiveDashboard['status'] === 'available' && $pumkLiveDashboard['payment_count'] === 0)
+                    <p class="monitoring-data-note">Belum ada angsuran tercatat pada {{ $pumkLiveDashboard['year'] }}. Posisi saldo mengikuti bukti kontrak atau baseline yang tersedia.</p>
+                @endif
+                @if($pumkLiveDashboard['classification_limited'])
+                    <p class="monitoring-data-note">Sebagian sektor, wilayah, atau kolektibilitas historis belum terverifikasi dan dikelompokkan sebagai belum terverifikasi/belum dinilai.</p>
+                @endif
+                @if($pumkLiveDashboard['snapshot_stale'])
+                    <p class="monitoring-data-note">Snapshot periode ini perlu direkonsiliasi setelah perubahan angsuran. Angka saldo dibaca ulang dari sumber, tetapi revisi snapshot belum dicatat.</p>
+                @endif
+                @if($pumkLiveDashboard['negative_loans'] > 0)
+                    <p class="monitoring-data-note">Terdapat {{ $pumkLiveDashboard['negative_loans'] }} saldo pinjaman negatif yang perlu ditinjau. Nilainya tidak diubah menjadi positif; irisan grafik mungkin tidak mewakili anomali ini.</p>
+                @elseif($pumkLiveDashboard['total_saldo_piutang'] === 0.0)
+                    <p class="monitoring-data-note">Saldo piutang pada posisi ini sah bernilai nol; tidak ada saldo untuk didistribusikan pada grafik.</p>
+                @endif
 
                 <div class="pumk-live-summary">
                     <article class="pumk-total-card"><span>Saldo Piutang Pinjaman (Pokok)</span><strong>{{ $formatRupiah($pumkLiveDashboard['saldo_pokok']) }}</strong></article>
                     <article class="pumk-total-card"><span>Saldo Piutang Pinjaman (Bunga)</span><strong>{{ $formatRupiah($pumkLiveDashboard['saldo_bunga']) }}</strong></article>
                     <article class="pumk-total-card"><span>Total Saldo Piutang Pinjaman</span><strong>{{ $formatRupiah($pumkLiveDashboard['total_saldo_piutang']) }}</strong></article>
-                    <article class="pumk-total-card"><span>Total Binaan</span><strong>{{ number_format($pumkLiveDashboard['total_binaan'], 0, ',', '.') }}</strong></article>
+                    <article class="pumk-total-card"><span>Total Binaan</span><strong>{{ $pumkLiveDashboard['total_binaan'] === null ? 'Belum tersedia' : number_format($pumkLiveDashboard['total_binaan'], 0, ',', '.') }}</strong></article>
                 </div>
 
                 <div class="pumk-primary-grid" style="grid-template-columns:1fr 1fr">
@@ -1253,7 +1328,7 @@
                         <div class="pumk-chart">
                             <canvas id="pumk-live-sector-chart" aria-label="Distribusi pinjaman berdasarkan sektor"></canvas>
                             @if($pumkLiveDashboard['sektor']->isEmpty())
-                                <p class="pumk-empty-note">Belum ada pinjaman aktif untuk ditampilkan.</p>
+                                <p class="pumk-empty-note">Data sektor untuk periode ini belum tersedia.</p>
                             @endif
                         </div>
                     </article>
@@ -1262,7 +1337,7 @@
                         <div class="pumk-chart">
                             <canvas id="pumk-live-quality-chart" aria-label="Distribusi piutang berdasarkan kolektibilitas"></canvas>
                             @if($pumkLiveDashboard['kolektibilitas']->isEmpty())
-                                <p class="pumk-empty-note">Belum ada kolektibilitas aktif untuk ditampilkan.</p>
+                                <p class="pumk-empty-note">Data kolektibilitas untuk periode ini belum tersedia.</p>
                             @endif
                         </div>
                     </article>
@@ -1274,7 +1349,7 @@
                         <div class="pumk-wide-chart">
                             <canvas id="pumk-live-province-chart" aria-label="Sebaran saldo piutang PUMK per provinsi"></canvas>
                             @if($pumkLiveDashboard['sebaran_provinsi']->isEmpty())
-                                <p class="pumk-empty-note">Belum ada data wilayah untuk ditampilkan.</p>
+                                <p class="pumk-empty-note">Data wilayah untuk periode ini belum tersedia.</p>
                             @endif
                         </div>
                     </article>
@@ -1283,15 +1358,16 @@
                         <div class="pumk-wide-chart">
                             <canvas id="pumk-live-quality-trend-chart" aria-label="Tren snapshot piutang per kolektibilitas"></canvas>
                             @if($pumkLiveDashboard['tren_kolektibilitas']['datasets'] === [])
-                                <p class="pumk-empty-note">Riwayat sebelum fitur snapshot dibuat memang belum tersedia.</p>
+                                <p class="pumk-empty-note">Tren hanya menampilkan bulan dengan posisi yang dapat dihitung.</p>
                             @endif
                         </div>
                     </article>
                 </div>
-                <p class="pumk-source-note">Saldo pokok, bunga, dan total saldo piutang berasal dari posisi Kartu Piutang PUMK terbaru.</p>
+                <p class="pumk-source-note">Saldo pokok, bunga, dan total dihitung untuk tanggal posisi yang sama dari Kartu Piutang. Bulan tanpa bukti tidak diisi nol.</p>
             </div>
         </div>
     </section>
+    @endif
 
     <section class="faq-section">
         <div class="container-site">

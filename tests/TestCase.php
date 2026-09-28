@@ -4,10 +4,26 @@ namespace Tests;
 
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Auth;
 use RuntimeException;
 
 abstract class TestCase extends BaseTestCase
 {
+    /**
+     * Feature fixtures represent one account signed into the shared login.
+     * Panel controllers still use their existing role-specific guard.
+     */
+    public function actingAs($user, $guard = null)
+    {
+        foreach (['web', 'admin', 'superadmin', 'pumk'] as $guardName) {
+            Auth::guard($guardName)->logout();
+        }
+        Auth::forgetGuards();
+        Auth::guard('web')->setUser($user);
+
+        return parent::actingAs($user, $guard ?? 'web');
+    }
+
     /**
      * Boot the application and stop the test suite before database-refresh
      * traits run when the resolved connection is not the isolated SQLite DB.

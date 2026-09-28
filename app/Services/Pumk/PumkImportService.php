@@ -16,6 +16,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -247,6 +248,16 @@ final class PumkImportService
                     ], JSON_UNESCAPED_SLASHES)
                     : null,
             ]);
+
+            // Impor dapat mengubah baseline atau menghapus angsuran lama lewat
+            // query builder (tanpa event model). Tandai snapshot untuk rekonsiliasi.
+            if (($summary['baru'] + $summary['diperbarui'] + $summary['dinonaktifkan']) > 0
+                && Schema::hasTable('pumk_monitoring_reports')) {
+                DB::table('pumk_monitoring_reports')->update([
+                    'needs_reconcile' => true,
+                    'updated_at' => now(),
+                ]);
+            }
 
             return $summary;
         } catch (\Throwable $exception) {

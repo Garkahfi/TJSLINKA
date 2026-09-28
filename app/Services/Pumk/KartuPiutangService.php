@@ -168,12 +168,35 @@ class KartuPiutangService
             ->unique()->sortDesc()->values()->all();
         // Pemanggil perhitungan internal yang tidak meminta filter tetap menerima
         // seluruh histori. Halaman/ekspor mengirim "terbaru" secara eksplisit.
-        $selectedYear = $tahun === null || $tahun === 'semua'
-            ? 'semua'
-            : (is_numeric($tahun) ? (int) $tahun : null);
+        if ($tahun === 'terbaru') {
+            $actualYears = $pinjaman->angsuran
+                ->pluck('periode')
+                ->push($opening?->cutoff_date, $pinjaman->source_updated_at, $pinjaman->tanggal_pencairan, $start)
+                ->filter(fn ($date): bool => $date !== null && CarbonImmutable::instance($date)->lessThanOrEqualTo($referenceDate))
+                ->map(fn ($date): int => (int) $date->year)
+                ->unique()->all();
+            $currentYear = (int) $referenceDate->year;
+            $currentYearHasPosition = in_array($currentYear, $availableYears, true)
+                && ($actualYears !== [] || ($start && $start->lessThanOrEqualTo($referenceDate)));
+
+            $selectedYear = $currentYearHasPosition
+                ? $currentYear
+                : (collect($availableYears)
+                    ->filter(fn (int $year): bool => $year <= $currentYear && in_array($year, $actualYears, true))
+                    ->first()
+                    ?? collect($availableYears)->first(fn (int $year): bool => $year <= $currentYear)
+                    ?? ($availableYears === [] ? 'semua' : min($availableYears)));
+        } else {
+            $selectedYear = $tahun === null || $tahun === 'semua'
+                ? 'semua'
+                : (is_numeric($tahun) ? (int) $tahun : null);
+        }
         if ($selectedYear !== 'semua' && ! in_array($selectedYear, $availableYears, true)) {
             $selectedYear = $availableYears[0] ?? 'semua';
         }
+        $futureScheduleOnly = $tahun === 'terbaru'
+            && is_int($selectedYear)
+            && $selectedYear > (int) $referenceDate->year;
 
         $yearRows = $selectedYear === 'semua'
             ? $allRows
@@ -200,9 +223,11 @@ class KartuPiutangService
             'denda' => $calculation['total_denda_masuk'],
             'tahun_tersedia' => $availableYears,
             'tahun_terpilih' => $selectedYear,
-            'periode_label' => $selectedYear === 'semua'
-                ? 'Menampilkan seluruh histori Kartu Piutang'
-                : 'Menampilkan periode: Tahun '.$selectedYear,
+            'periode_label' => $futureScheduleOnly
+                ? 'Jadwal angsuran belum berjalan. Tahun '.$selectedYear.' hanya memuat rencana tenor, bukan realisasi pembayaran.'
+                : ($selectedYear === 'semua'
+                    ? 'Menampilkan seluruh histori Kartu Piutang'
+                    : 'Menampilkan periode: Tahun '.$selectedYear),
         ];
     }
 }

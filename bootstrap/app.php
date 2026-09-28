@@ -2,6 +2,8 @@
 
 use App\Http\Middleware\EnsureAdminPasswordChanged;
 use App\Http\Middleware\EnsureUserRole;
+use App\Http\Middleware\SynchronizeLoginSession;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,20 +16,16 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->redirectGuestsTo(
-            fn (Request $request) => $request->is('admin-pumk', 'admin-pumk/*', 'admin/monitoring', 'admin/monitoring/*')
-                ? '/admin-pumk/login'
-                : ($request->is('superadmin', 'superadmin/*')
-                    ? '/superadmin/login'
-                    : ($request->is('admin', 'admin/*') ? '/admin/login' : '/login'))
+        $middleware->trustProxies(at: '*');
+
+        $middleware->web(append: SynchronizeLoginSession::class);
+        $middleware->prependToPriorityList(
+            AuthenticatesRequests::class,
+            SynchronizeLoginSession::class,
         );
-        $middleware->redirectUsersTo(
-            fn (Request $request) => $request->is('admin-pumk', 'admin-pumk/*', 'admin/monitoring', 'admin/monitoring/*')
-                ? '/admin-pumk/home'
-                : ($request->is('superadmin', 'superadmin/*')
-                    ? '/superadmin/home'
-                    : ($request->is('admin', 'admin/*') ? '/admin/home' : '/'))
-        );
+
+        $middleware->redirectGuestsTo(fn (Request $request) => route('login'));
+        $middleware->redirectUsersTo(fn (Request $request) => route('entry'));
         $middleware->alias([
             'admin.password.changed' => EnsureAdminPasswordChanged::class,
             'role' => EnsureUserRole::class,

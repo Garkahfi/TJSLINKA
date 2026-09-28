@@ -107,14 +107,15 @@ class SuperAdminPhaseThreeTest extends TestCase
 
     public function test_super_admin_session_does_not_authenticate_admin_area(): void
     {
-        $this->actingAs($this->superAdmin(), 'superadmin')->get(route('admin.home'))->assertRedirect(route('admin.login'));
+        $this->actingAs($this->superAdmin(), 'superadmin')->get(route('admin.home'))->assertForbidden();
     }
 
-    public function test_opening_super_admin_login_always_shows_login_form(): void
+    public function test_opening_legacy_super_admin_login_keeps_the_current_account(): void
     {
         $super = $this->superAdmin();
-        $this->actingAs($super, 'superadmin')->get(route('superadmin.login'))->assertOk()->assertSee('Super Admin');
-        $this->assertGuest('superadmin');
+        $this->actingAs($super, 'superadmin')->get(route('superadmin.login'))->assertRedirect(route('login'));
+        $this->get(route('login'))->assertRedirect(route('superadmin.home'));
+        $this->assertAuthenticatedAs($super, 'superadmin');
     }
 
     public function test_super_admin_cannot_create_program_or_assistance(): void

@@ -7,6 +7,7 @@ use App\Models\PumkBriIdentityReview;
 use App\Models\PumkBriMitra;
 use App\Models\PumkBriSnapshotBulanan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Throwable;
@@ -51,11 +52,54 @@ class PumkBriSnapshotImportService
      */
     public function import(string $path, int $defaultYear, bool $force = false): array
     {
+        $this->validateYear($defaultYear);
+        $sheets = $this->reader->read($path);
+
+        return $this->importSheets($sheets, $defaultYear, $force, false);
+    }
+
+    /**
+     * Web uploads never replace a period and reject an incompatible workbook before any writes.
+     *
+     * @return array<string, array{status:string,bulan:?int,tahun:?int,baris:int,total_saldo:string,pesan:string}>
+     */
+    public function importForWebUpload(string $path, int $defaultYear): array
+    {
+        $this->validateYear($defaultYear);
+        $sheets = $this->reader->read($path);
+        $compatible = false;
+        foreach ($sheets as $sheetName => $rows) {
+            if ($this->periodFromSheetName($sheetName, $defaultYear) === null) {
+                continue;
+            }
+            try {
+                $this->findHeader($sheetName, $rows);
+                $compatible = true;
+                break;
+            } catch (InvalidArgumentException) {
+                // Another monthly sheet may still be compatible; no business data is written here.
+            }
+        }
+        if (! $compatible) {
+            throw new InvalidArgumentException('Workbook tidak memiliki sheet Snapshot PUMK BRI dengan header yang sesuai.');
+        }
+
+        return $this->importSheets($sheets, $defaultYear, false, true);
+    }
+
+    private function validateYear(int $defaultYear): void
+    {
         if ($defaultYear < 1900 || $defaultYear > 2100) {
             throw new InvalidArgumentException('Tahun default harus berada pada rentang 1900-2100.');
         }
+    }
 
-        $sheets = $this->reader->read($path);
+    /**
+     * @param  array<string, array<int, array<string, ?string>>>  $sheets
+     * @return array<string, array{status:string,bulan:?int,tahun:?int,baris:int,total_saldo:string,pesan:string}>
+     */
+    private function importSheets(array $sheets, int $defaultYear, bool $force, bool $webUpload): array
+    {
         $summary = [];
 
         foreach ($sheets as $sheetName => $rows) {
@@ -74,7 +118,9 @@ class PumkBriSnapshotImportService
                     $year,
                     0,
                     '0.00',
-                    'Dilewati - periode sudah pernah diimpor. Gunakan --force untuk menggantinya.',
+                    $webUpload
+                        ? 'Periode ini sudah pernah diimpor; data lama tetap digunakan.'
+                        : 'Dilewati - periode sudah pernah diimpor. Gunakan --force untuk menggantinya.',
                 );
 
                 continue;
@@ -117,18 +163,25 @@ class PumkBriSnapshotImportService
                     $exception->getMessage().' Baris: '.implode(', ', array_column($exception->cases, 'source_row')).'.',
                 );
             } catch (Throwable $exception) {
+                if ($webUpload && ! $exception instanceof InvalidArgumentException) {
+                    Log::error('Import snapshot PUMK BRI gagal.', ['exception_type' => $exception::class]);
+                }
                 $summary[$sheetName] = $this->result(
                     'failed',
                     $month,
                     $year,
                     0,
                     '0.00',
-                    $exception->getMessage(),
+                    $webUpload && ! $exception instanceof InvalidArgumentException
+                        ? 'Periode gagal diproses. Periksa log aplikasi.'
+                        : $exception->getMessage(),
                 );
             }
         }
 
-        $this->facilityStatus->sync();
+        if (! $webUpload || collect($summary)->contains(fn (array $result): bool => $result['status'] === 'imported')) {
+            $this->facilityStatus->sync();
+        }
 
         return $summary;
     }

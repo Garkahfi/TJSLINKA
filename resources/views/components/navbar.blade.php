@@ -1,6 +1,7 @@
 @php
     $publicNavbarUser = auth('web')->user();
     $publicNavbarName = trim(($publicNavbarUser?->nama_depan ?? '').' '.($publicNavbarUser?->nama_belakang ?? ''));
+    $myDashboardRoute = $publicNavbarUser ? app(\App\Services\Auth\LoginDestination::class)->routeFor($publicNavbarUser) : null;
 @endphp
 
 <style>
@@ -45,7 +46,7 @@
         </a>
 
         <div class="hidden items-center gap-10 lg:flex">
-            <a class="nav-link {{ request()->routeIs('home') ? 'text-inka-red' : '' }}" href="{{ route('home') }}">Home</a>
+            <a class="nav-link {{ request()->routeIs('home', 'monitoring.*') ? 'text-inka-red' : '' }}" href="{{ route('home') }}">Home</a>
             <a class="nav-link {{ request()->routeIs('teras') ? 'text-inka-red' : '' }}" href="{{ route('teras') }}">Teras TJSL</a>
             <div class="group relative py-7">
                 <button class="nav-link inline-flex items-center gap-1" type="button">
@@ -74,6 +75,9 @@
                     role="menu"
                     aria-label="Menu akun"
                 >
+                    @if($myDashboardRoute)
+                    <a href="{{ route($myDashboardRoute) }}" class="account-menu-link" role="menuitem">Dashboard Saya</a>
+                    @endif
                     <a href="{{ route('public.profile') }}" class="account-menu-link" role="menuitem">
                         Profil
                     </a>
@@ -119,6 +123,9 @@
             <a class="nav-link" href="{{ route('teras') }}">Teras TJSL</a>
             <a class="nav-link" href="{{ route('program.overview') }}">Overview Program</a>
             <a class="nav-link" href="{{ route('program.rincian') }}">Realisasi Program</a>
+            @if($myDashboardRoute)
+            <a class="nav-link" href="{{ route($myDashboardRoute) }}">Dashboard Saya</a>
+            @endif
             <a class="nav-link" href="{{ route('public.profile') }}">Profil</a>
             <form action="{{ route('public.logout') }}" method="POST">
                 @csrf

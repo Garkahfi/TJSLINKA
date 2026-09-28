@@ -26,11 +26,15 @@ use App\Http\Controllers\SuperAdminUserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/', [PublicAuthController::class, 'entry'])->name('entry');
 Route::get('/login', [PublicAuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [PublicAuthController::class, 'login'])->name('login.store');
 
 Route::middleware('auth:web')->group(function () {
-    Route::get('/', [PageController::class, 'home'])->name('home');
+    Route::get('/monitoring', [PageController::class, 'home'])->name('home');
+    Route::get('/monitoring/tjsl', [PageController::class, 'monitoringTjsl'])->name('monitoring.tjsl');
+    Route::get('/monitoring/pumk-bri', [PageController::class, 'monitoringBri'])->name('monitoring.bri');
+    Route::get('/monitoring/pumk-inka', [PageController::class, 'monitoringInka'])->name('monitoring.inka');
     Route::post('/logout', [PublicAuthController::class, 'logout'])->name('public.logout');
     Route::get('/profil', [PublicProfileController::class, 'edit'])->name('public.profile');
     Route::put('/profil', [PublicProfileController::class, 'update'])->name('public.profile.update');
@@ -54,13 +58,13 @@ Route::middleware('auth:web')->group(function () {
 });
 
 Route::prefix('admin')->name('admin.')->group(function () {
-    Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AdminAuthController::class, 'login'])->name('login.store');
+    Route::get('/login', fn () => redirect()->route('login'))->name('login');
+    Route::post('/login', [PublicAuthController::class, 'login'])->name('login.store');
 
     Route::middleware(['auth:admin', 'role:admin', 'admin.password.changed'])->group(function () {
         Route::get('/ganti-password', [AdminAuthController::class, 'showChangePassword'])->name('password.edit');
         Route::put('/ganti-password', [AdminAuthController::class, 'changePassword'])->name('password.update');
-        Route::post('/logout', [AdminAuthController::class, 'logout'])->name('logout');
+        Route::post('/logout', [PublicAuthController::class, 'logout'])->name('logout');
 
         Route::redirect('/', '/admin/home')->name('dashboard');
         Route::get('/home', AdminDashboardController::class)->name('home');
@@ -99,13 +103,13 @@ Route::middleware(['auth:pumk', 'role:pumk_admin', 'admin.password.changed'])
     });
 
 Route::prefix('admin-pumk')->name('pumk-admin.')->group(function () {
-    Route::get('/login', [PumkAdminAuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [PumkAdminAuthController::class, 'login'])->name('login.store');
+    Route::get('/login', fn () => redirect()->route('login'))->name('login');
+    Route::post('/login', [PublicAuthController::class, 'login'])->name('login.store');
 
     Route::middleware(['auth:pumk', 'role:pumk_admin', 'admin.password.changed'])->group(function () {
         Route::get('/ganti-password', [PumkAdminAuthController::class, 'showChangePassword'])->name('password.edit');
         Route::put('/ganti-password', [PumkAdminAuthController::class, 'changePassword'])->name('password.update');
-        Route::post('/logout', [PumkAdminAuthController::class, 'logout'])->name('logout');
+        Route::post('/logout', [PublicAuthController::class, 'logout'])->name('logout');
         Route::redirect('/', '/admin-pumk/home')->name('dashboard');
         Route::get('/home', PumkAdminDashboardController::class)->name('home');
         Route::get('/profil', [AdminProfileController::class, 'edit'])->name('profile');
@@ -152,12 +156,12 @@ Route::middleware(['auth:superadmin', 'role:super_admin', 'admin.password.change
 });
 
 Route::prefix('superadmin')->name('superadmin.')->group(function () {
-    Route::get('/login', [SuperAdminAuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [SuperAdminAuthController::class, 'login'])->name('login.store');
+    Route::get('/login', fn () => redirect()->route('login'))->name('login');
+    Route::post('/login', [PublicAuthController::class, 'login'])->name('login.store');
     Route::middleware(['auth:superadmin', 'role:super_admin', 'admin.password.changed'])->group(function () {
         Route::get('/ganti-password', [SuperAdminAuthController::class, 'showChangePassword'])->name('password.edit');
         Route::put('/ganti-password', [SuperAdminAuthController::class, 'changePassword'])->name('password.update');
-        Route::post('/logout', [SuperAdminAuthController::class, 'logout'])->name('logout');
+        Route::post('/logout', [PublicAuthController::class, 'logout'])->name('logout');
         Route::redirect('/', '/superadmin/home')->name('dashboard');
         Route::get('/home', SuperAdminDashboardController::class)->name('home');
         Route::get('/pumk', [SuperAdminPumkMonitoringController::class, 'index'])->name('pumk.index');

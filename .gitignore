@@ -17,6 +17,9 @@
 /node_modules
 /Brief AI/
 /docs/
+!/docs/
+/docs/*
+!/docs/uat-tjslinka.md
 /output/
 /public/build
 /public/fonts-manifest.dev.json

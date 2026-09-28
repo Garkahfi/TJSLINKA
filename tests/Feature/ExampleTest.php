@@ -17,12 +17,12 @@ class ExampleTest extends TestCase
      */
     public function test_the_application_returns_a_successful_response(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => 'admin', 'is_active' => true, 'must_change_password' => false]);
         $pillar = Pillar::create(['name' => 'Sosial', 'slug' => 'sosial', 'color_hex' => '#2563eb']);
         Program::create(['slug' => 'program-jaminan-sosial-pekerja-rentan', 'pillar_id' => $pillar->id, 'nama_program' => 'Program Jaminan Sosial Pekerja Rentan', 'deskripsi_program' => 'Deskripsi', 'sasaran_program' => 'Sasaran', 'lokasi_program' => 'Madiun', 'mitra_program' => 'Mitra', 'rencana_anggaran' => 100, 'realisasi_anggaran' => 50, 'tujuan_program' => 'Tujuan', 'status' => 'completed', 'created_by' => $user->id]);
         $this->get('/login')->assertOk()->assertSee('USERNAME');
         $this->actingAs($user, 'web');
-        $this->get('/')->assertOk()->assertSee('Realisasi Anggaran Program TJSL Tahun');
+        $this->get(route('home'))->assertOk()->assertSee('Realisasi Anggaran Program TJSL');
         $this->get('/teras-tjsl')->assertOk()->assertSee('Paket Produk Teras TJSL');
         $this->get('/program-tjsl/overview')
             ->assertOk()

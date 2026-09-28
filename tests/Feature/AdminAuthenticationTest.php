@@ -21,9 +21,9 @@ class AdminAuthenticationTest extends TestCase
         ]);
     }
 
-    public function test_guest_is_redirected_to_admin_login(): void
+    public function test_guest_is_redirected_to_shared_login(): void
     {
-        $this->get('/admin')->assertRedirect('/admin/login');
+        $this->get('/admin')->assertRedirect(route('login'));
     }
 
     public function test_admin_with_temporary_password_must_change_it_before_opening_dashboard(): void
@@ -54,7 +54,7 @@ class AdminAuthenticationTest extends TestCase
         $this->assertTrue(Hash::check('PasswordBaru123', $admin->password));
     }
 
-    public function test_admin_and_super_admin_sessions_are_independent(): void
+    public function test_switching_accounts_replaces_the_previous_panel_session(): void
     {
         $admin = $this->admin();
         $admin->update(['must_change_password' => false]);
@@ -72,21 +72,23 @@ class AdminAuthenticationTest extends TestCase
             'password' => 'TJSLHPVICTUS',
         ])->assertRedirect(route('admin.home'));
 
-        $this->get(route('superadmin.login'))->assertOk();
+        $this->get(route('superadmin.login'))->assertRedirect(route('login'));
         $this->post(route('superadmin.login.store'), [
             'username' => 'TJSLINKAMIN',
             'password' => 'TJSLHPVICTUS15',
         ])->assertRedirect(route('superadmin.home'));
 
-        $this->assertAuthenticatedAs($admin, 'admin');
+        $this->assertGuest('admin');
+        $this->assertAuthenticatedAs($superAdmin, 'web');
         $this->assertAuthenticatedAs($superAdmin, 'superadmin');
-        $this->get(route('admin.home'))->assertOk();
+        $this->get(route('admin.home'))->assertForbidden();
         $this->get(route('superadmin.home'))->assertOk();
 
-        $this->post(route('admin.logout'))->assertRedirect(route('admin.login'));
+        $this->post(route('superadmin.logout'))->assertRedirect(route('login'));
         $this->assertGuest('admin');
-        $this->assertAuthenticatedAs($superAdmin, 'superadmin');
-        $this->get(route('superadmin.home'))->assertOk();
+        $this->assertGuest('superadmin');
+        $this->assertGuest('web');
+        $this->get(route('superadmin.home'))->assertRedirect(route('login'));
     }
 
     public function test_admin_login_ignores_stale_super_admin_intended_url(): void

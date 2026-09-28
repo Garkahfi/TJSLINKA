@@ -173,7 +173,7 @@ class PumkPaymentProofTest extends TestCase
         $this->get(route('superadmin.pumk.angsuran.bukti.view', [$mitra, $pinjaman, $angsuran]))->assertOk();
         $this->get(route('superadmin.pumk.angsuran.bukti.download', [$mitra, $pinjaman, $angsuran]))->assertOk();
         $this->delete(route('pumk-admin.mitra.angsuran.bukti.destroy', [$mitra, $pinjaman, $angsuran]))
-            ->assertRedirect(route('pumk-admin.login'));
+            ->assertForbidden();
         Storage::disk('local')->assertExists($path);
 
         auth('superadmin')->logout();

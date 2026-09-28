@@ -24,11 +24,11 @@ class MonitoringUploadAccessTest extends TestCase
         ]);
 
         $this->get('/admin/monitoring/upload')
-            ->assertRedirect('/admin-pumk/login');
+            ->assertRedirect(route('login'));
 
         $this->actingAs($adminTjsl, 'admin')
             ->get('/admin/monitoring/upload')
-            ->assertRedirect('/admin-pumk/login');
+            ->assertForbidden();
 
         $this->actingAs($pumkAdmin, 'pumk')
             ->get('/admin/monitoring/upload')
@@ -38,7 +38,7 @@ class MonitoringUploadAccessTest extends TestCase
             ->assertDontSee('Nama sheet dan header yang diterima');
     }
 
-    public function test_wrong_role_forced_into_pumk_guard_is_forbidden(): void
+    public function test_wrong_role_cannot_open_pumk_upload(): void
     {
         $adminTjsl = User::factory()->create([
             'role' => 'admin',
@@ -46,7 +46,7 @@ class MonitoringUploadAccessTest extends TestCase
             'must_change_password' => false,
         ]);
 
-        $this->actingAs($adminTjsl, 'pumk')
+        $this->actingAs($adminTjsl, 'web')
             ->get('/admin/monitoring/upload')
             ->assertForbidden();
     }

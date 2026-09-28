@@ -19,6 +19,8 @@ use Throwable;
 
 class MonitoringExcelImport
 {
+    private const TJSL_SHEETS = ['Pilar', 'Wilayah', 'BidangPrioritas', 'TPB'];
+
     public const HEADERS = [
         'Pilar' => ['nama_pilar', 'rencana_anggaran', 'realisasi_anggaran'],
         'Wilayah' => ['nama_wilayah', 'realisasi_anggaran'],
@@ -37,10 +39,40 @@ class MonitoringExcelImport
      */
     public function import(string $path): array
     {
-        $workbook = $this->reader->read($path, array_keys(self::HEADERS));
+        return $this->importSelected($path, self::HEADERS, false);
+    }
+
+    /** @return array<string, array{status:string, berhasil:int, gagal:int, pesan:string, errors:list<string>}> */
+    public function importTjsl(string $path): array
+    {
+        $headers = array_intersect_key(self::HEADERS, array_fill_keys(self::TJSL_SHEETS, true));
+
+        return $this->importSelected($path, $headers, true);
+    }
+
+    /**
+     * @param  array<string, list<string>>  $headers
+     * @return array<string, array{status:string, berhasil:int, gagal:int, pesan:string, errors:list<string>}>
+     */
+    private function importSelected(string $path, array $headers, bool $requireCompatible): array
+    {
+        $workbook = $this->reader->read($path, array_keys($headers));
+        if ($requireCompatible) {
+            $compatible = false;
+            foreach ($headers as $sheetName => $requiredHeaders) {
+                if (isset($workbook[$sheetName]) && array_diff($requiredHeaders, $workbook[$sheetName]['headers']) === []) {
+                    $compatible = true;
+                    break;
+                }
+            }
+            if (! $compatible) {
+                throw new InvalidArgumentException('Workbook tidak memiliki sheet Monitoring TJSL dengan header yang sesuai.');
+            }
+        }
+
         $summary = [];
 
-        foreach (self::HEADERS as $sheetName => $requiredHeaders) {
+        foreach ($headers as $sheetName => $requiredHeaders) {
             if (! isset($workbook[$sheetName])) {
                 $summary[$sheetName] = $this->result('skipped', 0, 0, 'Dilewati — sheet tidak ditemukan; data lama tetap dipakai.');
 

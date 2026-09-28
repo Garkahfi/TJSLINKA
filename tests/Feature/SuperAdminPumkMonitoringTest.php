@@ -44,13 +44,13 @@ class SuperAdminPumkMonitoringTest extends TestCase
             ->assertDontSee('1234567890')->assertDontSee('Alamat Terbatas')
             ->assertDontSee('Tambah Angsuran')->assertDontSee('Edit Data');
 
-        $this->get(route('pumk-admin.home'))->assertRedirect(route('pumk-admin.login'));
-        $this->post(route('pumk-admin.mitra.angsuran.store', [$mitra, $pinjaman]), [])->assertRedirect(route('pumk-admin.login'));
+        $this->get(route('pumk-admin.home'))->assertForbidden();
+        $this->post(route('pumk-admin.mitra.angsuran.store', [$mitra, $pinjaman]), [])->assertForbidden();
     }
 
     public function test_other_roles_cannot_open_super_admin_pumk_monitoring(): void
     {
         $pumk = User::factory()->create(['role' => 'pumk_admin', 'is_admin' => true, 'is_active' => true]);
-        $this->actingAs($pumk, 'superadmin')->get(route('superadmin.pumk.index'))->assertForbidden();
+        $this->actingAs($pumk, 'web')->get(route('superadmin.pumk.index'))->assertForbidden();
     }
 }

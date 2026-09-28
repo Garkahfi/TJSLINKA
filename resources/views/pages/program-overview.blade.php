@@ -1,5 +1,5 @@
 <x-layouts.app title="Overview Program — LENSA TJSL INKA">
-    <x-hero-video video="videos/people-talking-bg.mp4" variant="animated-pillars" />
+    <x-hero-video video="videos/program-monitoring-bg.mp4" variant="animated-pillars" />
 
     <section class="py-16">
         <div class="container-site">

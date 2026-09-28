@@ -164,7 +164,7 @@ class AdminPhaseTwoTest extends TestCase
             ->assertSee('admin-sidebar')
             ->assertSee('admin-main')
             ->assertSee('lensa-tjsl-inka-navbar.png')
-            ->assertSee('Selamat datang di dashboard Admin')
+            ->assertSee('Dashboard Admin TJSL')
             ->assertSee('Hukum &amp; Tata Kelola', false)
             ->assertSee('Program TJSL')
             ->assertSee('Status Bantuan TJSL')

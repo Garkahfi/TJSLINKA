@@ -18,7 +18,7 @@
 
     <div class="pumk-page">
         <div class="dashboard-heading">
-            <h1>Selamat datang di dashboard Admin PUMK</h1>
+            <h1>Dashboard Admin PUMK</h1>
             <p>Kelola data mitra binaan dan kartu piutang pada satu tempat.</p>
         </div>
 

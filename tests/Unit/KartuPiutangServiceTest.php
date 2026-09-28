@@ -204,4 +204,48 @@ class KartuPiutangServiceTest extends TestCase
         $this->assertSame('1000000.00', $card['jadwal'][11]['saldo_pokok']);
         $this->assertDatabaseCount('pumk_angsuran', 0);
     }
+
+    public function test_latest_year_does_not_jump_to_the_end_of_a_future_tenor(): void
+    {
+        $mitra = PumkMitra::create(['nama_mitra' => 'Mitra Tenor Panjang', 'source_key' => hash('sha256', 'mitra-tenor-panjang')]);
+        $pinjaman = PumkPinjaman::create([
+            'mitra_id' => $mitra->id,
+            'source_key' => hash('sha256', 'pinjaman-tenor-panjang'),
+            'tanggal_pencairan' => '2026-01-01',
+            'mulai_angsuran' => '2026-01-01',
+            'selesai_angsuran' => '2029-12-01',
+            'pinjaman_pokok' => 1_000_000,
+            'pinjaman_bunga' => 100_000,
+        ]);
+        $today = CarbonImmutable::parse('2026-09-15');
+        $service = app(KartuPiutangService::class);
+
+        $latest = $service->buat($pinjaman->refresh(), $today, 'terbaru');
+        $explicit = $service->buat($pinjaman->refresh(), $today, 2029);
+
+        $this->assertSame([2029, 2028, 2027, 2026], $latest['tahun_tersedia']);
+        $this->assertSame(2026, $latest['tahun_terpilih']);
+        $this->assertSame(2029, $explicit['tahun_terpilih']);
+        $this->assertDatabaseCount('pumk_angsuran', 0);
+    }
+
+    public function test_future_only_schedule_is_labelled_as_a_plan_not_realisation(): void
+    {
+        $mitra = PumkMitra::create(['nama_mitra' => 'Mitra Masa Depan', 'source_key' => hash('sha256', 'mitra-masa-depan')]);
+        $pinjaman = PumkPinjaman::create([
+            'mitra_id' => $mitra->id,
+            'source_key' => hash('sha256', 'pinjaman-masa-depan'),
+            'tanggal_pencairan' => '2027-01-01',
+            'mulai_angsuran' => '2027-01-01',
+            'selesai_angsuran' => '2029-12-01',
+            'pinjaman_pokok' => 1_000_000,
+            'pinjaman_bunga' => 100_000,
+        ]);
+
+        $card = app(KartuPiutangService::class)->buat($pinjaman, CarbonImmutable::parse('2026-09-15'), 'terbaru');
+
+        $this->assertSame(2027, $card['tahun_terpilih']);
+        $this->assertStringContainsString('Jadwal angsuran belum berjalan', $card['periode_label']);
+        $this->assertDatabaseCount('pumk_angsuran', 0);
+    }
 }

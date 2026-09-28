@@ -83,7 +83,7 @@ class PumkYearAndContractDocumentTest extends TestCase
         $this->get(route('superadmin.pumk.dokumen.view', [$mitra, $pinjaman, $document]))->assertOk();
         $this->get(route('superadmin.pumk.dokumen.download', [$mitra, $pinjaman, $document]))->assertOk();
         $this->delete(route('pumk-admin.mitra.dokumen.destroy', [$mitra, $pinjaman, $document]))
-            ->assertRedirect(route('pumk-admin.login'));
+            ->assertForbidden();
         Storage::disk('local')->assertExists($document->file_path);
 
         $this->actingAs($admin, 'pumk');

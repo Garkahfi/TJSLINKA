@@ -19,7 +19,7 @@ class PublicHomeDashboardTest extends TestCase
 
     public function test_home_reads_sheet_cache_tables_instead_of_aggregating_program_submissions(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => 'admin', 'is_active' => true, 'must_change_password' => false]);
         $sosial = Pillar::create([
             'name' => 'Sosial',
             'slug' => 'sosial',
@@ -59,7 +59,7 @@ class PublicHomeDashboardTest extends TestCase
         $this->createProgram($user, $sosial, 'completed', 'program-tidak-menjadi-sumber-dashboard', 99999, 99999);
         $this->createProgram($user, $sosial, 'pending_fase1', 'program-pending', 99999, 99999);
 
-        $response = $this->actingAs($user, 'web')->get('/');
+        $response = $this->actingAs($user, 'web')->get(route('home'));
 
         $response->assertOk()
             ->assertSee('class="tjsl-report-frame"', false)
@@ -70,18 +70,13 @@ class PublicHomeDashboardTest extends TestCase
             ->assertSee('id="priority-chart"', false)
             ->assertSee('id="region-chart"', false)
             ->assertSee('id="peta-wilayah"', false)
-            ->assertSee('Realisasi Anggaran Program TJSL Tahun')
+            ->assertSee('Realisasi Anggaran Program TJSL')
             ->assertSee('Download Laporan')
             ->assertSee('Realisasi Anggaran untuk Bidang Prioritas')
             ->assertDontSee('Realisasi Anggaran untuk Program Unggulan')
-            ->assertSee('class="pumk-report-frame pumk-bri-frame"', false)
-            ->assertSee('Dashboard Program PUMK BRI')
-            ->assertSee('id="pumk-portfolio-chart"', false)
-            ->assertSee('id="pumk-quality-chart"', false)
-            ->assertSee('id="pumk-bri-map"', false)
-            ->assertSee('id="pumk-outstanding-month-chart"', false)
-            ->assertSee('id="pumk-bri-data-mitra"', false)
-            ->assertSee('Input RKA Penyaluran')
+            ->assertDontSee('class="pumk-report-frame pumk-bri-frame"', false)
+            ->assertDontSee('id="pumk-bri-map"', false)
+            ->assertDontSee('Dashboard PUMK PT. INKA (Persero)')
             ->assertSee('class="faq-frame"', false)
             ->assertSee('aria-expanded="true"', false)
             ->assertSee('Lensa TJSL INKA adalah platform digital')
@@ -98,6 +93,19 @@ class PublicHomeDashboardTest extends TestCase
             ->assertSee('Bidang Lingkungan')
             ->assertSee('Lingkungan')
             ->assertSee('Hukum &amp; Tata Kelola', false);
+
+        $briResponse = $this->actingAs($user, 'web')->get(route('monitoring.bri'));
+        $briResponse->assertOk()
+            ->assertSee('class="pumk-report-frame pumk-bri-frame"', false)
+            ->assertSee('Dashboard Program PUMK BRI')
+            ->assertSee('id="pumk-portfolio-chart"', false)
+            ->assertSee('id="pumk-quality-chart"', false)
+            ->assertSee('id="pumk-bri-map"', false)
+            ->assertSee('id="pumk-outstanding-month-chart"', false)
+            ->assertSee('id="pumk-bri-data-mitra"', false)
+            ->assertSee('Input RKA Penyaluran')
+            ->assertDontSee('id="per-pilar-chart"', false)
+            ->assertDontSee('Dashboard PUMK PT. INKA (Persero)');
 
         $perPilar = $response->viewData('perPilar');
         $perWilayah = $response->viewData('perWilayah');
@@ -161,10 +169,10 @@ class PublicHomeDashboardTest extends TestCase
 
     public function test_public_home_uses_all_regions_and_keeps_wilayah_lainnya_at_the_bottom(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => 'admin', 'is_active' => true, 'must_change_password' => false]);
         $this->seed(WilayahOperasionalSeeder::class);
 
-        $response = $this->actingAs($user, 'web')->get('/');
+        $response = $this->actingAs($user, 'web')->get(route('home'));
 
         $response->assertOk()
             ->assertSee('Kota Madiun')
@@ -187,7 +195,7 @@ class PublicHomeDashboardTest extends TestCase
         $response->assertSee('Chart.defaults.devicePixelRatio = chartPixelRatio', false);
     }
 
-    public function test_public_logout_does_not_clear_the_separate_internal_admin_session(): void
+    public function test_public_logout_clears_the_shared_internal_admin_session(): void
     {
         $admin = User::factory()->create([
             'role' => 'admin',
@@ -199,7 +207,7 @@ class PublicHomeDashboardTest extends TestCase
 
         $response->assertRedirect(route('login'));
         $this->assertGuest('web');
-        $this->assertAuthenticatedAs($admin, 'admin');
+        $this->assertGuest('admin');
     }
 
     private function createProgram(
