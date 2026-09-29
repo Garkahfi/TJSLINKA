@@ -187,16 +187,17 @@ class PumkLoanCompletionTest extends TestCase
 
         $this->actingAs($admin, 'pumk')->put(route('pumk-admin.mitra.update', $mitra), [
             'nama_mitra' => 'Mitra Selesai',
+            'new_loan' => '1',
             'tanggal_pencairan' => '2027-01-10',
             'pinjaman_pokok' => 50_000,
             'pinjaman_bunga' => 5_000,
-        ])->assertRedirect(route('pumk-admin.mitra.show', $mitra));
+        ])->assertRedirect();
 
         $this->assertTrue($mitra->fresh()->is_active);
         $this->assertSame(3, $mitra->pinjaman()->count());
         $this->assertSame(2, $mitra->pinjaman()->where('status', PumkPinjaman::STATUS_LUNAS)->count());
         $this->assertSame(1, $mitra->pinjamanAktif()->count());
-        $this->assertDatabaseHas('pumk_activity_logs', ['action' => 'reactivate_partner']);
+        $this->assertDatabaseHas('pumk_activity_logs', ['action' => 'create_loan']);
     }
 
     /** @return array{User, PumkMitra, PumkPinjaman} */

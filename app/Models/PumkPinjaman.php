@@ -136,6 +136,25 @@ class PumkPinjaman extends Model
         return $this->belongsTo(User::class, 'lunas_by');
     }
 
+    public function closures(): HasMany
+    {
+        return $this->hasMany(PumkLoanClosure::class, 'pinjaman_id');
+    }
+
+    public function isClosedAt(\Carbon\CarbonImmutable $asOf): bool
+    {
+        $date = $asOf->setTimezone('Asia/Jakarta')->toDateString();
+        foreach ($this->closures as $closure) {
+            if ($closure->closed_at->timezone('Asia/Jakarta')->toDateString() <= $date
+                && ($closure->reopened_at === null || $date < $closure->reopened_at->timezone('Asia/Jakarta')->toDateString())) {
+                return true;
+            }
+        }
+
+        return $this->status === self::STATUS_LUNAS && $this->lunas_at !== null
+            && $this->lunas_at->timezone('Asia/Jakarta')->toDateString() <= $date;
+    }
+
     public function saldoAwal(): HasOne
     {
         return $this->hasOne(PumkSaldoAwal::class, 'pinjaman_id');

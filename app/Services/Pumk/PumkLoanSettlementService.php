@@ -3,6 +3,7 @@
 namespace App\Services\Pumk;
 
 use App\Models\PumkMitra;
+use App\Models\PumkLoanClosure;
 use App\Models\PumkPinjaman;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -115,6 +116,13 @@ class PumkLoanSettlementService
                 'lunas_total_saldo' => $decision['total'],
                 'lunas_tolerance_applied' => $decision['tolerance'],
             ])->save();
+            PumkLoanClosure::create([
+                'pinjaman_id' => $loan->id, 'closed_at' => $closedAt, 'closed_by' => $actorId,
+                'settlement_snapshot' => $loan->only([
+                    'lunas_reason', 'lunas_note', 'lunas_saldo_pokok', 'lunas_saldo_bunga',
+                    'lunas_total_saldo', 'lunas_tolerance_applied',
+                ]),
+            ]);
             $this->activity->record('mark_loan_paid', 'pumk_internal', 'Menandai pinjaman sebagai lunas.', $loan, metadata: [
                 'reason' => $decision['reason'],
                 'saldo_pokok' => $decision['saldo_pokok'],
@@ -134,6 +142,43 @@ class PumkLoanSettlementService
                 ->update(['needs_reconcile' => true, 'updated_at' => now()]);
 
             return ['status' => 'paid', 'reason' => $decision['reason']];
+        }, 3);
+    }
+
+    public function reopen(int $mitraId, int $loanId, string $note, int $actorId): void
+    {
+        if (mb_strlen(trim($note)) < 5) {
+            throw ValidationException::withMessages(['reopen_note' => 'Isi alasan membuka kembali pinjaman (minimal 5 karakter).']);
+        }
+        DB::transaction(function () use ($mitraId, $loanId, $note, $actorId): void {
+            $mitra = PumkMitra::query()->lockForUpdate()->findOrFail($mitraId);
+            $loan = $mitra->pinjaman()->lockForUpdate()->findOrFail($loanId);
+            abort_unless($loan->status === PumkPinjaman::STATUS_LUNAS, 409, 'Hanya pinjaman lunas yang dapat dibuka kembali.');
+            if ($loan->lunas_at === null) {
+                throw ValidationException::withMessages(['reopen_note' => 'Tanggal penutupan lama belum tersedia. Periksa data penutupan sebelum membuka kembali.']);
+            }
+            $closure = $loan->closures()->whereNull('reopened_at')->lockForUpdate()->latest('id')->first();
+            $closure ??= $loan->closures()->create([
+                'closed_at' => $loan->lunas_at, 'closed_by' => $loan->lunas_by,
+                'settlement_snapshot' => $loan->only([
+                    'lunas_reason', 'lunas_note', 'lunas_saldo_pokok', 'lunas_saldo_bunga',
+                    'lunas_total_saldo', 'lunas_tolerance_applied',
+                ]),
+            ]);
+            $reopenedAt = now();
+            $closure->update(['reopened_at' => $reopenedAt, 'reopened_by' => $actorId, 'reopen_note' => trim($note)]);
+            $loan->forceFill([
+                'status' => PumkPinjaman::STATUS_AKTIF, 'is_active' => true,
+                'lunas_at' => null, 'lunas_by' => null, 'lunas_note' => null, 'lunas_reason' => null,
+                'lunas_saldo_pokok' => null, 'lunas_saldo_bunga' => null,
+                'lunas_total_saldo' => null, 'lunas_tolerance_applied' => null,
+            ])->save();
+            $mitra->update(['is_active' => true]);
+            $this->activity->record('reopen_loan', 'pumk_internal', 'Membuka kembali pinjaman lama; saldo dan angsuran tetap.', $loan,
+                metadata: ['closure_id' => $closure->id]);
+            DB::table('pumk_monitoring_reports')
+                ->whereDate('as_of_date', '>=', $reopenedAt->copy()->timezone('Asia/Jakarta')->toDateString())
+                ->update(['needs_reconcile' => true, 'updated_at' => now()]);
         }, 3);
     }
 }

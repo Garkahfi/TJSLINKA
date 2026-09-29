@@ -99,12 +99,8 @@
                                 {{ $pinjaman && $pinjaman->total_sisa !== null ? 'Rp '.number_format((float) $pinjaman->total_sisa, 0, ',', '.') : '—' }}
                             </td>
                             <td class="actions">
-                                <a href="{{ route('pumk-admin.mitra.show', $mitra) }}" class="pumk-table-action">Lihat Kartu</a>
-                                @if($mitra->pinjaman_aktif_exists)
-                                    <a href="{{ route('pumk-admin.mitra.edit', $mitra) }}" class="pumk-table-action">Edit</a>
-                                @else
-                                    <a href="{{ route('pumk-admin.mitra.edit', $mitra) }}" class="pumk-table-action">Aktifkan Kembali</a>
-                                @endif
+                                <a href="{{ route('pumk-admin.mitra.show', [$mitra, 'pinjaman' => $pinjaman?->id]) }}" class="pumk-table-action">Lihat Kartu</a>
+                                <a href="{{ route('pumk-admin.mitra.edit', [$mitra, 'pinjaman' => $pinjaman?->id]) }}" class="pumk-table-action">{{ $pinjaman?->status === 'aktif' ? 'Edit' : 'Edit Arsip' }}</a>
                             </td>
                         </tr>
                     @empty

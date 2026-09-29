@@ -33,7 +33,7 @@ class PumkInternalMonitoringService
         }
         $loans = PumkPinjaman::query()->with([
             'mitra.sektorUsaha', 'mitra.wilayah', 'mitra.classificationHistory',
-            'classificationHistory', 'saldoAwal', 'angsuran',
+            'classificationHistory', 'saldoAwal', 'angsuran', 'closures',
         ])->get();
         $reports = PumkMonitoringReport::query()->with('positions')->whereDate('as_of_date', '<=', $today->toDateString())->orderBy('as_of_date')->get();
         $evidence = $this->evidenceDates($loans, $reports, $today);
@@ -111,7 +111,7 @@ class PumkInternalMonitoringService
     {
         $loans = PumkPinjaman::query()->with([
             'mitra.sektorUsaha', 'mitra.wilayah', 'mitra.classificationHistory',
-            'classificationHistory', 'saldoAwal', 'angsuran',
+            'classificationHistory', 'saldoAwal', 'angsuran', 'closures',
         ])->get();
         $reports = PumkMonitoringReport::query()->with('positions')
             ->whereDate('as_of_date', '<=', $asOf->toDateString())->orderBy('as_of_date')->get();
@@ -130,7 +130,7 @@ class PumkInternalMonitoringService
         $asOf = CarbonImmutable::parse($report['as_of_date'], 'Asia/Jakarta')->startOfDay();
         $loans = PumkPinjaman::query()->with([
             'mitra.sektorUsaha', 'mitra.wilayah', 'mitra.classificationHistory',
-            'classificationHistory', 'saldoAwal', 'angsuran',
+            'classificationHistory', 'saldoAwal', 'angsuran', 'closures',
         ])->get();
         $reports = PumkMonitoringReport::query()->with('positions')
             ->whereDate('as_of_date', '<=', $asOf->toDateString())->orderBy('as_of_date')->get();
@@ -208,8 +208,7 @@ class PumkInternalMonitoringService
             if ($start === null || $start->greaterThan($asOf)) {
                 continue;
             }
-            if ($loan->status === PumkPinjaman::STATUS_LUNAS && $loan->lunas_at !== null
-                && $this->completionDate($loan->lunas_at)->lessThanOrEqualTo($asOf)) {
+            if ($loan->isClosedAt($asOf)) {
                 $closed++;
                 $closedIds[] = $loan->id;
 
@@ -283,6 +282,12 @@ class PumkInternalMonitoringService
             if ($loan->status === PumkPinjaman::STATUS_LUNAS && $loan->lunas_at !== null) {
                 $dates->push($this->completionDate($loan->lunas_at));
             }
+            foreach ($loan->closures as $closure) {
+                $dates->push($this->completionDate($closure->closed_at));
+                if ($closure->reopened_at !== null) {
+                    $dates->push($this->completionDate($closure->reopened_at));
+                }
+            }
             foreach ($loan->classificationHistory as $category) {
                 $dates->push($this->localDate($category->effective_from));
             }
@@ -324,6 +329,14 @@ class PumkInternalMonitoringService
             }
             if ($loan->mitra?->updated_at?->lessThanOrEqualTo($asOf->endOfDay())) {
                 $timestamps->push($loan->mitra->updated_at);
+            }
+            foreach ($loan->closures as $closure) {
+                if ($this->completionDate($closure->closed_at)->lessThanOrEqualTo($asOf)) {
+                    $timestamps->push($closure->closed_at);
+                }
+                if ($closure->reopened_at !== null && $this->completionDate($closure->reopened_at)->lessThanOrEqualTo($asOf)) {
+                    $timestamps->push($closure->reopened_at);
+                }
             }
             foreach ($loan->classificationHistory as $category) {
                 if ($this->localDate($category->effective_from)->lessThanOrEqualTo($asOf)) {

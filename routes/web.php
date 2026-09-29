@@ -143,6 +143,7 @@ Route::prefix('admin-pumk')->name('pumk-admin.')->group(function () {
             ->name('mitra.dokumen.download');
         Route::delete('/mitra/{mitra}/pinjaman/{pinjaman}/dokumen/{document}', [PumkMitraController::class, 'destroyDocument'])
             ->name('mitra.dokumen.destroy');
+        Route::post('/mitra/{mitra}/pinjaman/{pinjaman}/buka-kembali', [PumkMitraController::class, 'reopen'])->name('mitra.pinjaman.reopen');
         Route::post('/mitra/{mitra}/pinjaman/{pinjaman}/lunas', [PumkMitraController::class, 'markPaid'])
             ->name('mitra.pinjaman.lunas');
         Route::get('/mitra/{mitra}/pinjaman/{pinjaman}/kartu-piutang.xls', [PumkMitraController::class, 'exportExcel'])

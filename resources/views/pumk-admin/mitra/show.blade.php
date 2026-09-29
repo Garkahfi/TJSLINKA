@@ -29,6 +29,7 @@
         .year-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px;padding:13px 16px}.year-toolbar label{font-weight:700}.year-toolbar select{min-width:170px}.opening-balance-proof{flex-basis:100%}.proof-input-group{display:grid;gap:7px}.proof-input-group input[type=file]{font-size:10px}.payment-proof-links{display:flex;justify-content:center;gap:5px;flex-wrap:wrap;margin-top:4px}.edit-proof-existing{border:1px solid #dbeafe;border-radius:6px;background:#eff6ff;padding:8px;font-size:11px}.contract-document-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.contract-document-actions form{margin:0}.small-action{display:inline-flex;align-items:center;border:1px solid #94a3b8;border-radius:5px;background:#fff;padding:4px 8px;color:#0f172a;font:600 10px Poppins,sans-serif;text-decoration:none}.small-action.danger{border-color:#fca5a5;color:#b91c1c}
     </style>
 
+    <style>#paid-loan-dialog{max-height:85vh;overflow-y:auto}</style>
     <div class="pumk-page receivable-page">
         <div class="receivable-toolbar">
             <div>
@@ -41,7 +42,8 @@
                     <a href="{{ route('pumk-admin.mitra.kartu.excel', [$mitra, $pinjaman, 'tahun' => $kartu['tahun_terpilih']]) }}" class="pumk-secondary-button">Unduh Excel</a>
                     <a href="{{ route('pumk-admin.mitra.kartu.pdf', [$mitra, $pinjaman, 'tahun' => $kartu['tahun_terpilih']]) }}" class="pumk-secondary-button">Unduh PDF</a>
                 @endif
-                <a href="{{ route('pumk-admin.mitra.edit', $mitra) }}" class="pumk-primary-button">{{ $mitra->is_active ? 'Edit Data' : 'Aktifkan Kembali' }}</a>
+                <a href="{{ route('pumk-admin.mitra.edit', [$mitra, 'pinjaman' => $pinjaman?->id]) }}" class="pumk-primary-button">{{ $loanIsActive ? 'Edit Data dan Dokumen' : 'Edit Arsip dan Dokumen' }}</a>
+                <a href="{{ route('pumk-admin.mitra.edit', [$mitra, 'new_loan' => 1]) }}" class="pumk-secondary-button">Buat Pinjaman Baru</a>
                 @if($loanIsActive)
                     <button type="button" class="danger-button" data-open-paid-dialog>Tandai Lunas</button>
                 @endif
@@ -102,6 +104,26 @@
                 @if($pinjaman->pelunas) Petugas: {{ $pinjaman->pelunas->name }}. @endif
                 @if(filled($pinjaman->lunas_note)) Catatan: {{ $pinjaman->lunas_note }} @endif
             </div>
+        @endif
+        @if($pinjaman?->status === \App\Models\PumkPinjaman::STATUS_LUNAS)
+            <details class="pumk-card" style="padding:16px;margin-bottom:18px">
+                <summary>Buka Kembali Pinjaman Lama</summary>
+                <p>Gunakan hanya untuk koreksi pinjaman ini. Saldo, nomor pinjaman, dan angsuran lama tetap dipakai. Unggah SPJ cukup melalui Edit Arsip dan Dokumen.</p>
+                <form method="POST" action="{{ route('pumk-admin.mitra.pinjaman.reopen', [$mitra, $pinjaman]) }}">
+                    @csrf
+                    <label for="reopen_note">Alasan membuka kembali *</label>
+                    <textarea id="reopen_note" name="reopen_note" class="pumk-textarea" required minlength="5" maxlength="1000">{{ old('reopen_note') }}</textarea>
+                    <button type="submit" class="pumk-secondary-button">Buka Kembali Pinjaman Ini</button>
+                </form>
+            </details>
+        @endif
+        @if($pinjaman && $pinjaman->closures->contains(fn ($closure) => $closure->reopened_at !== null))
+            <details class="pumk-card" style="padding:16px;margin-bottom:18px"><summary>Riwayat penutupan dan pembukaan kembali</summary>
+                @foreach($pinjaman->closures->whereNotNull('reopened_at') as $closure)
+                    <p>Ditutup {{ $closure->closed_at->timezone('Asia/Jakarta')->format('d/m/Y H:i') }}, dibuka kembali {{ $closure->reopened_at->timezone('Asia/Jakarta')->format('d/m/Y H:i') }}.
+                    Saldo saat ditutup: {{ ($closure->settlement_snapshot['lunas_total_saldo'] ?? null) !== null ? $rupiah($closure->settlement_snapshot['lunas_total_saldo']) : 'Belum tercatat' }}. Alasan: {{ $closure->reopen_note }}</p>
+                @endforeach
+            </details>
         @endif
         @if($saldoAwalOverlap)
             <section class="opening-balance-conflict" role="alert" aria-labelledby="opening-balance-conflict-title">
@@ -320,18 +342,27 @@
                         <div><h2>Tandai Pinjaman Lunas</h2><p class="pumk-page-subtitle">Tindakan ini mengarsipkan pinjaman tanpa menghapus kartu dan histori angsuran.</p></div>
                         <button type="button" class="installment-dialog-close" data-close-paid-dialog aria-label="Tutup">&times;</button>
                     </div>
-                    <p>Posisi saldo per {{ $settlementPreview['as_of_date'] }}: pokok <strong>{{ $rupiah($settlementPreview['saldo_pokok']) }}</strong>, bunga <strong>{{ $rupiah($settlementPreview['saldo_bunga']) }}</strong>, total <strong>{{ $rupiah($settlementPreview['total']) }}</strong>.</p>
+                    @if($errors->hasAny(['lunas', 'lunas_note', 'konfirmasi_kelebihan_bayar']))
+                        <div class="pumk-alert error" role="alert">{{ $errors->first('lunas') ?: ($errors->first('lunas_note') ?: $errors->first('konfirmasi_kelebihan_bayar')) }}</div>
+                    @endif
+                    <p>Posisi saldo per {{ $settlementPreview['as_of_date'] }}: pokok <strong>{{ $settlementPreview['known'] ? $rupiah($settlementPreview['saldo_pokok']) : 'Belum diketahui' }}</strong>, bunga <strong>{{ $settlementPreview['known'] ? $rupiah($settlementPreview['saldo_bunga']) : 'Belum diketahui' }}</strong>, total <strong>{{ $settlementPreview['known'] ? $rupiah($settlementPreview['total']) : 'Belum diketahui' }}</strong>.</p>
                     <p>Batas toleransi aktif: {{ $rupiah($settlementPreview['tolerance']) }}. Jenis penyelesaian menurut server: <strong>{{ match($settlementPreview['reason']) {
                         'normal' => 'Normal', 'toleransi' => 'Toleransi selisih',
                         'kelebihan_bayar' => 'Kelebihan bayar', default => 'Belum dapat ditutup',
                     } }}</strong>.</p>
+                    @if($settlementPreview['eligible'])
+                        <p role="status"><strong>Pinjaman ini dapat ditandai lunas.</strong>
+                        @if($settlementPreview['reason'] === 'kelebihan_bayar') Saldo minus adalah kelebihan bayar; batas toleransi hanya berlaku untuk sisa utang positif. Isi catatan dan centang konfirmasi di bawah.
+                        @elseif($settlementPreview['needs_note']) Sisa utang ditutup sebagai toleransi selisih. Isi alasan penyelesaiannya.
+                        @endif</p>
+                    @endif
                     @if(! $settlementPreview['eligible'])<p class="receivable-warning">{{ $settlementPreview['message'] }}</p>@endif
                     <p>Setelah ditandai lunas, pinjaman diarsipkan dan angsuran tidak dapat ditambah atau diedit. Saldo sumber dan histori lama tetap tersimpan. Tanggal penutupan mengikuti waktu tindakan, bukan tanggal pembayaran lampau.</p>
                     <form method="POST" action="{{ route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $pinjaman]) }}">
                         @csrf
                         <div class="pumk-field"><label for="lunas_note">Catatan pelunasan {{ $settlementPreview['needs_note'] ? '(wajib)' : '(opsional)' }}</label><textarea id="lunas_note" name="lunas_note" class="pumk-textarea" maxlength="1000" @if($settlementPreview['needs_note']) required @endif>{{ old('lunas_note') }}</textarea></div>
                         @if($settlementPreview['needs_confirmation'])
-                            <div class="pumk-field"><label><input type="checkbox" name="konfirmasi_kelebihan_bayar" value="1" required> Saya sudah memeriksa kelebihan bayar dan memahami bahwa tindakan ini tidak mencatat pengembalian dana.</label></div>
+                            <div class="pumk-field"><label><input type="checkbox" name="konfirmasi_kelebihan_bayar" value="1" required @checked(old('konfirmasi_kelebihan_bayar'))> Saya sudah memeriksa kelebihan bayar dan memahami bahwa tindakan ini tidak mencatat pengembalian dana.</label></div>
                         @endif
                         <div class="installment-dialog-actions"><button type="button" class="pumk-secondary-button" data-close-paid-dialog>Batal</button><button type="submit" class="danger-button" @disabled(! $settlementPreview['eligible'])>Ya, Tandai Lunas</button></div>
                     </form>
@@ -426,6 +457,9 @@
                 document.querySelector('[data-open-paid-dialog]')?.addEventListener('click', () => paidDialog.showModal());
                 document.querySelectorAll('[data-close-paid-dialog]').forEach((button) => button.addEventListener('click', () => paidDialog.close()));
                 paidDialog.addEventListener('click', (event) => { if (event.target === paidDialog) paidDialog.close(); });
+                @if($errors->hasAny(['lunas', 'lunas_note', 'konfirmasi_kelebihan_bayar']))
+                    paidDialog.showModal();
+                @endif
             }
         });
     </script>
