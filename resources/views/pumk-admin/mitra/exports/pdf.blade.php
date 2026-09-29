@@ -38,6 +38,15 @@
         </td>
     </tr></table>
     <div class="warning">{{ $kartu['periode_label'] }}</div>
+    @if($pinjaman->status === 'lunas')
+        <div class="warning">Pinjaman ditutup secara operasional pada {{ $pinjaman->lunas_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '-' }}.
+            @if($pinjaman->lunas_reason)
+                Jenis: {{ str_replace('_', ' ', $pinjaman->lunas_reason) }}; saldo asli saat ditutup Rp {{ number_format((float) $pinjaman->lunas_total_saldo, 2, ',', '.') }}. Saldo pada kartu tidak dihapus.
+            @else
+                Pelunasan lama; rincian selisih saat penutupan belum tercatat.
+            @endif
+        </div>
+    @endif
     @if($kartu['jadwal_error'])<div class="warning">{{ $kartu['jadwal_error'] }}</div>@endif
     <table class="card-table">
         <colgroup><col style="width:5%"><col style="width:11%"><col style="width:19%"><col style="width:11%"><col style="width:10%"><col style="width:11%"><col style="width:18%"><col style="width:15%"></colgroup>

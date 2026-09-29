@@ -40,7 +40,14 @@ class PublicAuthenticationTest extends TestCase
         ])->assertRedirect(route('admin.home'));
         $this->assertAuthenticatedAs($admin, 'web');
         $this->assertAuthenticatedAs($admin, 'admin');
-        $this->get(route('home'))->assertOk();
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'aria-label="Pilih dashboard monitoring"',
+                'Realisasi Anggaran Program TJSL',
+                'Frequently Asked Questions (FAQ)',
+            ], false)
+            ->assertDontSee('videos/waterfall-bg.mp4');
         $this->get(route('admin.home'))->assertOk();
     }
 

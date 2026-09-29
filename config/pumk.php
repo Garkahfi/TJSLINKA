@@ -10,4 +10,7 @@ return [
         'legacy_username' => env('PUMK_LEGACY_ADMIN_USERNAME', 'PUMKADMIN'),
         'legacy_email' => env('PUMK_LEGACY_ADMIN_EMAIL', 'pumk.admin@tjslinka.local'),
     ],
+    // Nilai produksi tetap nol sampai batas toleransi disahkan perusahaan.
+    // Fixture pengujian/UAT memakai 10000.00 melalui override konfigurasi.
+    'settlement_tolerance' => env('PUMK_SETTLEMENT_TOLERANCE', '0.00'),
 ];

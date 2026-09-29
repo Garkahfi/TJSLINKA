@@ -12,6 +12,7 @@ use App\Models\PumkSaldoAwal;
 use App\Models\PumkSektorUsaha;
 use App\Models\PumkWilayah;
 use App\Models\User;
+use App\Services\Monitoring\PumkClassificationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -41,6 +42,7 @@ final class PumkImportService
     public function __construct(
         private readonly PumkXlsxReader $reader,
         private readonly PiutangCalculator $calculator,
+        private readonly PumkClassificationService $classifications,
     ) {}
 
     /** @return array<string, int> */
@@ -329,12 +331,14 @@ final class PumkImportService
         $mitraKey = $this->sourceKey('mitra', $noUrut);
         $pinjamanKey = $this->sourceKey('pinjaman', $noUrut);
 
-        $mitra = PumkMitra::firstOrNew(['source_key' => $mitraKey]);
+        $mitra = PumkMitra::query()->where('source_key', $mitraKey)->lockForUpdate()->first()
+            ?? new PumkMitra(['source_key' => $mitraKey]);
         if ($mitra->exists && $mitra->created_by !== null) {
             throw new PumkImportRowException('manual_partner_source_conflict');
         }
 
-        $pinjaman = PumkPinjaman::firstOrNew(['source_key' => $pinjamanKey]);
+        $pinjaman = PumkPinjaman::query()->where('source_key', $pinjamanKey)->lockForUpdate()->first()
+            ?? new PumkPinjaman(['source_key' => $pinjamanKey]);
         if ($pinjaman->exists && $pinjaman->created_by !== null) {
             throw new PumkImportRowException('manual_loan_source_conflict');
         }
@@ -384,6 +388,14 @@ final class PumkImportService
             $metrics[$mitraIsNew ? 'mitra_insert' : 'mitra_update']++;
         }
         $mitra->save();
+        if ($incomingMitra['sektor_sumber'] !== null) {
+            $this->classifications->record($mitra, null, 'sektor', $sector?->nama ?? $incomingMitra['sektor_sumber'],
+                $tanggalAcuan, 'import', $mitraKey.':sektor:'.$batch->file_hash);
+        }
+        if ($incomingMitra['wilayah_sumber'] !== null) {
+            $this->classifications->record($mitra, null, 'wilayah', $region?->nama ?? $incomingMitra['wilayah_sumber'],
+                $tanggalAcuan, 'import', $mitraKey.':wilayah:'.$batch->file_hash);
+        }
 
         $pinjamanIsNew = ! $pinjaman->exists;
         $metrics['matched'] = ! $mitraIsNew && ! $pinjamanIsNew ? 1 : 0;
@@ -442,6 +454,10 @@ final class PumkImportService
             $metrics[$pinjamanIsNew ? 'pinjaman_insert' : 'pinjaman_update']++;
         }
         $pinjaman->save();
+        if ($pinjaman->kolektibilitas !== null) {
+            $this->classifications->record(null, $pinjaman, 'kolektibilitas', $pinjaman->kolektibilitas,
+                $tanggalAcuan, 'import', $pinjamanKey.':kolektibilitas:'.$batch->file_hash);
+        }
 
         $this->validateLoanTotals($cells, $warnings);
         $this->validateRemainingTotals($cells, $warnings);

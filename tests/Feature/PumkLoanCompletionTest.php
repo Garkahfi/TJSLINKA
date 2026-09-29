@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\PumkActivityLog;
 use App\Models\PumkAngsuran;
 use App\Models\PumkMitra;
 use App\Models\PumkPinjaman;
@@ -15,6 +16,7 @@ class PumkLoanCompletionTest extends TestCase
 
     public function test_active_loan_with_remaining_balance_cannot_be_marked_paid(): void
     {
+        config()->set('pumk.settlement_tolerance', '10000.00');
         [$admin, $mitra, $pinjaman] = $this->loan(100_000, 10_000);
 
         $this->actingAs($admin, 'pumk')
@@ -25,6 +27,99 @@ class PumkLoanCompletionTest extends TestCase
 
         $this->assertSame(PumkPinjaman::STATUS_AKTIF, $pinjaman->fresh()->status);
         $this->assertTrue($pinjaman->fresh()->is_active);
+    }
+
+    public function test_small_positive_balance_requires_a_note_and_keeps_its_original_amount(): void
+    {
+        config()->set('pumk.settlement_tolerance', '10000.00');
+        [$admin, $mitra, $loan] = $this->loan(100_000, 0);
+        $this->payment($loan, $admin, 99_000);
+
+        $this->actingAs($admin, 'pumk')->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
+            'lunas_note' => '   ',
+        ])->assertSessionHasErrors('lunas_note');
+        $this->assertSame(PumkPinjaman::STATUS_AKTIF, $loan->fresh()->status);
+
+        $this->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
+            'lunas_note' => 'Selisih administrasi telah diperiksa.',
+            'lunas_total_saldo' => '0.00',
+            'lunas_reason' => 'normal',
+        ])->assertRedirect();
+
+        $closed = $loan->fresh();
+        $this->assertSame(PumkPinjaman::LUNAS_TOLERANSI, $closed->lunas_reason);
+        $this->assertSame('1000.00', $closed->lunas_total_saldo);
+        $this->assertSame('10000.00', $closed->lunas_tolerance_applied);
+        $this->assertSame('1000.00', $closed->sisa_pokok);
+        $this->assertDatabaseCount('pumk_angsuran', 1);
+        $this->assertDatabaseHas('pumk_activity_logs', ['action' => 'mark_loan_paid']);
+
+        config()->set('pumk.settlement_tolerance', '0.00');
+        $this->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
+            'lunas_note' => 'Catatan kedua',
+        ])->assertRedirect();
+        $this->assertSame('Selisih administrasi telah diperiksa.', $loan->fresh()->lunas_note);
+        $this->assertSame('10000.00', $loan->fresh()->lunas_tolerance_applied);
+        $this->assertSame(1, PumkActivityLog::query()->where('action', 'mark_loan_paid')->count());
+    }
+
+    public function test_tolerance_is_inclusive_but_an_amount_above_it_is_rejected(): void
+    {
+        config()->set('pumk.settlement_tolerance', '10000.00');
+        [$admin, $mitra, $loan] = $this->loan(10_000, 0);
+        $this->actingAs($admin, 'pumk')->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
+            'lunas_note' => 'Batas disetujui untuk UAT.',
+        ])->assertRedirect();
+        $this->assertSame('10000.00', $loan->fresh()->lunas_total_saldo);
+
+        [$otherAdmin, $otherMitra, $otherLoan] = $this->loan(10_000.01, 0);
+        $this->actingAs($otherAdmin, 'pumk')->post(route('pumk-admin.mitra.pinjaman.lunas', [$otherMitra, $otherLoan]), [
+            'lunas_note' => 'Mencoba melebihi batas.',
+        ])->assertSessionHasErrors('lunas');
+        $this->assertSame(PumkPinjaman::STATUS_AKTIF, $otherLoan->fresh()->status);
+        $this->assertNull($otherLoan->fresh()->lunas_total_saldo);
+    }
+
+    public function test_negative_balance_requires_note_and_explicit_confirmation(): void
+    {
+        config()->set('pumk.settlement_tolerance', '10000.00');
+        [$admin, $mitra, $loan] = $this->loan(100_000, 0);
+        $this->payment($loan, $admin, 105_000);
+        $url = route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]);
+
+        $this->actingAs($admin, 'pumk')->post($url, [])->assertSessionHasErrors('lunas_note');
+        $this->post($url, ['lunas_note' => 'Kelebihan bayar diperiksa.'])->assertSessionHasErrors('konfirmasi_kelebihan_bayar');
+        $this->post($url, [
+            'lunas_note' => 'Kelebihan bayar diperiksa.', 'konfirmasi_kelebihan_bayar' => '1',
+        ])->assertRedirect();
+
+        $closed = $loan->fresh();
+        $this->assertSame(PumkPinjaman::LUNAS_KELEBIHAN_BAYAR, $closed->lunas_reason);
+        $this->assertSame('-5000.00', $closed->lunas_total_saldo);
+        $this->assertDatabaseCount('pumk_angsuran', 1);
+    }
+
+    public function test_mixed_component_balance_cannot_be_closed_even_when_net_total_is_zero(): void
+    {
+        config()->set('pumk.settlement_tolerance', '10000.00');
+        [$admin, $mitra, $loan] = $this->loan(100_000, 0);
+        PumkAngsuran::create([
+            'pinjaman_id' => $loan->id, 'periode' => '2026-01-01',
+            'pokok' => 0, 'bunga' => 100_000, 'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin, 'pumk')->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
+            'lunas_note' => 'Perlu pemeriksaan alokasi.', 'konfirmasi_kelebihan_bayar' => '1',
+        ])->assertSessionHasErrors('lunas');
+        $this->assertSame(PumkPinjaman::STATUS_AKTIF, $loan->fresh()->status);
+    }
+
+    private function payment(PumkPinjaman $loan, User $admin, int $principal): void
+    {
+        PumkAngsuran::create([
+            'pinjaman_id' => $loan->id, 'periode' => '2026-01-01',
+            'pokok' => $principal, 'bunga' => 0, 'created_by' => $admin->id,
+        ]);
     }
 
     public function test_paid_loan_is_archived_without_deleting_history_and_remains_downloadable(): void

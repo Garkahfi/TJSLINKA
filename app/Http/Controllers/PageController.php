@@ -117,7 +117,10 @@ class PageController extends Controller
 
     public function monitoringInka(Request $request): View
     {
-        $validated = $request->validate(['year' => ['nullable', 'integer', 'between:1900,2100']]);
+        $validated = $request->validate(['year' => [
+            'nullable', 'integer', 'min:'.PumkInternalMonitoringService::MIN_REPORT_YEAR,
+            'max:'.Carbon::now('Asia/Jakarta')->year,
+        ]]);
 
         return view('pages.home', [
             'dashboardType' => 'inka',

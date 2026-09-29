@@ -12,6 +12,7 @@ use App\Models\PumkWilayah;
 use App\Models\User;
 use App\Services\Pumk\PiutangCalculator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -178,6 +179,8 @@ class PumkMitraManagementTest extends TestCase
 
     public function test_formatted_rupiah_and_dash_are_normalized_and_manual_installment_can_be_edited(): void
     {
+        // Tanggal 31 menguji periode Februari yang tidak boleh overflow ke Maret.
+        $this->travelTo(Carbon::parse('2026-01-31 12:00:00'));
         $admin = $this->pumkAdmin();
         $this->actingAs($admin, 'pumk');
         [$wilayah, $sektor] = $this->references();

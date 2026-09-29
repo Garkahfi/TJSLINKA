@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\PumkAngsuran;
+use App\Models\PumkClassificationHistory;
 use App\Models\PumkImportBatch;
 use App\Models\PumkMitra;
 use App\Models\PumkPinjaman;
@@ -264,6 +265,15 @@ class PumkImportServiceTest extends TestCase
         $this->assertSame('1000000.00', $pinjaman->pinjaman_pokok);
         $this->assertSame('100000.00', $pinjaman->pinjaman_bunga);
         $this->assertSame('lancar', $pinjaman->kolektibilitas);
+        $qualityHistory = PumkClassificationHistory::query()
+            ->where('pinjaman_id', $pinjaman->id)->where('attribute', 'kolektibilitas')->firstOrFail();
+        $sectorHistory = PumkClassificationHistory::query()
+            ->where('mitra_id', $pinjaman->mitra_id)->where('attribute', 'sektor')->firstOrFail();
+        $this->assertSame('lancar', $qualityHistory->value);
+        $this->assertSame('import', $qualityHistory->source_kind);
+        $this->assertSame('2026-07-31', $qualityHistory->effective_from->toDateString());
+        $this->assertSame('import', $sectorHistory->source_kind);
+        $this->assertSame('2026-07-31', $sectorHistory->effective_from->toDateString());
         $this->assertSame([], $result['comparison_differences']);
         $this->assertNotContains('missing_reschedule_ke2', $result['warnings']);
         $this->assertNotContains('missing_reschedule_ke3', $result['warnings']);

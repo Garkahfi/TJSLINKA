@@ -15,6 +15,12 @@ class PumkPinjaman extends Model
 
     public const STATUS_NONAKTIF = 'nonaktif';
 
+    public const LUNAS_NORMAL = 'normal';
+
+    public const LUNAS_TOLERANSI = 'toleransi';
+
+    public const LUNAS_KELEBIHAN_BAYAR = 'kelebihan_bayar';
+
     protected $table = 'pumk_pinjaman';
 
     protected $fillable = [
@@ -57,6 +63,11 @@ class PumkPinjaman extends Model
         'lunas_at',
         'lunas_by',
         'lunas_note',
+        'lunas_reason',
+        'lunas_saldo_pokok',
+        'lunas_saldo_bunga',
+        'lunas_total_saldo',
+        'lunas_tolerance_applied',
         'source_updated_at',
         'baseline_sumber',
         'calculated_at',
@@ -81,6 +92,10 @@ class PumkPinjaman extends Model
             'total_sisa' => 'decimal:2',
             'is_active' => 'boolean',
             'lunas_at' => 'datetime',
+            'lunas_saldo_pokok' => 'decimal:2',
+            'lunas_saldo_bunga' => 'decimal:2',
+            'lunas_total_saldo' => 'decimal:2',
+            'lunas_tolerance_applied' => 'decimal:2',
             'source_updated_at' => 'datetime',
             'baseline_sumber' => 'array',
             'calculated_at' => 'datetime',
@@ -124,6 +139,11 @@ class PumkPinjaman extends Model
     public function saldoAwal(): HasOne
     {
         return $this->hasOne(PumkSaldoAwal::class, 'pinjaman_id');
+    }
+
+    public function classificationHistory(): HasMany
+    {
+        return $this->hasMany(PumkClassificationHistory::class, 'pinjaman_id');
     }
 
     public function angsuran(): HasMany

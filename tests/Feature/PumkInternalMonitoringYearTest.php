@@ -10,6 +10,7 @@ use App\Models\PumkSaldoAwal;
 use App\Models\User;
 use App\Services\Monitoring\PumkInternalMonitoringService;
 use App\Services\Monitoring\PumkMonitoringCaptureService;
+use App\Services\Pumk\PumkLoanSettlementService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -66,7 +67,8 @@ class PumkInternalMonitoringYearTest extends TestCase
         $this->assertSame(9000000.0, $data['total_saldo_piutang']);
         $this->assertSame(0, $data['payment_count']);
         $this->assertNotContains(2029, $data['years']);
-        $this->assertSame('unavailable', app(PumkInternalMonitoringService::class)->report(2029)['status']);
+        $this->expectException(\InvalidArgumentException::class);
+        app(PumkInternalMonitoringService::class)->report(2029);
     }
 
     public function test_opening_payment_aggregate_is_applied_once_and_future_payment_not_used(): void
@@ -345,8 +347,8 @@ class PumkInternalMonitoringYearTest extends TestCase
         $data = app(PumkInternalMonitoringService::class)->report();
 
         $this->assertSame('unavailable', $data['status']);
-        $this->assertNull($data['year']);
-        $this->assertSame([], $data['years']);
+        $this->assertSame(2027, $data['year']);
+        $this->assertSame([2027, 2026, 2025], $data['years']);
         $this->assertNull($data['as_of_date']);
         $this->assertNull($data['updated_at']);
         $this->assertNull($data['total_saldo_piutang']);
@@ -382,6 +384,57 @@ class PumkInternalMonitoringYearTest extends TestCase
         $this->assertSame(100_000.0, $data['sektor']->sum('nilai'));
         $this->assertSame(100_000.0, $data['sebaran_provinsi']->sum('nilai'));
         $this->assertSame(100_000.0, $data['kolektibilitas']->sum('nilai'));
+    }
+
+    public function test_tolerance_closure_removes_loan_only_from_its_effective_day_and_can_capture_zero(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-28 18:00:00', 'Asia/Jakarta'));
+        config()->set('pumk.settlement_tolerance', '10000.00');
+        $loan = $this->loan('2026-01-01', 5_000, 0);
+        $user = User::factory()->create(['role' => 'pumk_admin', 'is_active' => true, 'must_change_password' => false]);
+        app(PumkLoanSettlementService::class)->settle($loan->mitra_id, $loan->id, 'Selisih diperiksa.', false, $user->id);
+
+        $service = app(PumkInternalMonitoringService::class);
+        $loans = PumkPinjaman::with(['mitra', 'saldoAwal', 'angsuran'])->get();
+        $reports = PumkMonitoringReport::with('positions')->get();
+        $before = $service->positionsAt($loans, CarbonImmutable::parse('2026-09-27', 'Asia/Jakarta'), $reports);
+        $after = $service->positionsAt($loans, CarbonImmutable::parse('2026-09-28', 'Asia/Jakarta'), $reports);
+        $dashboard = $service->report(2026);
+
+        $this->assertCount(1, $before['rows']);
+        $this->assertSame('5000.00', $before['rows'][0]['total']);
+        $this->assertSame([], $after['rows']);
+        $this->assertSame(1, $after['closed']);
+        $this->assertSame('available', $dashboard['status']);
+        $this->assertSame('2026-09-28', $dashboard['as_of_date']);
+        $this->assertSame(0.0, $dashboard['total_saldo_piutang']);
+        $this->assertSame(0, $dashboard['total_binaan']);
+        $this->assertSame('created', app(PumkMonitoringCaptureService::class)
+            ->capture(CarbonImmutable::parse('2026-09-28', 'Asia/Jakarta'))['status']);
+        $this->assertDatabaseCount('pumk_monitoring_positions', 0);
+    }
+
+    public function test_open_negative_balance_does_not_reduce_positive_portfolio_or_enter_charts(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-28 12:00:00', 'Asia/Jakarta'));
+        $negative = $this->loan('2026-01-01', 100_000, 0);
+        $this->payment($negative, '2026-09-01', 105_000);
+        $mitra = PumkMitra::create(['nama_mitra' => 'Mitra Positif', 'source_key' => hash('sha256', 'positive-mitra')]);
+        PumkPinjaman::create([
+            'mitra_id' => $mitra->id, 'source_key' => hash('sha256', 'positive-loan'),
+            'tanggal_pencairan' => '2026-01-01', 'pinjaman_pokok' => 1_000_000, 'pinjaman_bunga' => 0,
+            'kolektibilitas' => 'Lancar',
+        ]);
+
+        $data = app(PumkInternalMonitoringService::class)->report(2026);
+
+        $this->assertSame(1_000_000.0, $data['total_saldo_piutang']);
+        $this->assertSame(-5_000.0, $data['negative_total']);
+        $this->assertSame(995_000.0, $data['net_known_balance']);
+        $this->assertSame(1, $data['negative_loans']);
+        $this->assertSame(1, $data['total_binaan']);
+        $this->assertSame(1_000_000.0, $data['sektor']->sum('nilai'));
+        $this->assertSame(1_000_000.0, $data['kolektibilitas']->sum('nilai'));
     }
 
     public function test_only_selected_dashboard_is_rendered_and_old_bri_year_link_redirects(): void

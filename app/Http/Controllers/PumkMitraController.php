@@ -8,10 +8,12 @@ use App\Models\PumkPinjaman;
 use App\Models\PumkPinjamanDokumen;
 use App\Models\PumkSektorUsaha;
 use App\Models\PumkWilayah;
+use App\Services\Monitoring\PumkClassificationService;
 use App\Services\Pumk\KartuPiutangService;
 use App\Services\Pumk\PiutangCalculator;
 use App\Services\Pumk\PumkActivityLogger;
 use App\Services\Pumk\PumkLoanDocumentService;
+use App\Services\Pumk\PumkLoanSettlementService;
 use App\Services\Pumk\PumkPaymentProofService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -89,6 +91,7 @@ class PumkMitraController extends Controller
         PiutangCalculator $calculator,
         PumkActivityLogger $activity,
         PumkLoanDocumentService $documents,
+        PumkClassificationService $classifications,
     ): RedirectResponse {
         $data = $this->validateMitra($request);
 
@@ -102,7 +105,7 @@ class PumkMitraController extends Controller
             ])->withInput();
         }
 
-        $mitra = DB::transaction(function () use ($request, $data, $calculator, $activity, $documents): PumkMitra {
+        $mitra = DB::transaction(function () use ($request, $data, $calculator, $activity, $documents, $classifications): PumkMitra {
             $mitra = PumkMitra::create($this->mitraPayload($data) + [
                 'source_key' => hash('sha256', 'manual-mitra|'.Str::uuid()),
                 'created_by' => auth('pumk')->id(),
@@ -117,6 +120,10 @@ class PumkMitraController extends Controller
             ]);
 
             $calculator->sinkronkanCache($pinjaman);
+            $effective = CarbonImmutable::now('Asia/Jakarta');
+            $classifications->record($mitra, null, 'sektor', $mitra->sektor_sumber, $effective, 'admin', (string) Str::uuid(), auth('pumk')->id());
+            $classifications->record($mitra, null, 'wilayah', $mitra->wilayah_sumber, $effective, 'admin', (string) Str::uuid(), auth('pumk')->id());
+            $classifications->record(null, $pinjaman, 'kolektibilitas', $pinjaman->kolektibilitas, $effective, 'estimate', (string) Str::uuid(), auth('pumk')->id());
             $this->storeContractDocuments($request, $pinjaman, $documents);
             $activity->record('create_loan', 'pumk_internal', 'Menambahkan Mitra dan pinjaman baru.', $pinjaman);
 
@@ -128,7 +135,7 @@ class PumkMitraController extends Controller
             ->with('success', 'Mitra binaan berhasil ditambahkan.');
     }
 
-    public function show(Request $request, PumkMitra $mitra, KartuPiutangService $kartuPiutang): View
+    public function show(Request $request, PumkMitra $mitra, KartuPiutangService $kartuPiutang, PumkLoanSettlementService $settlement): View
     {
         $mitra->load([
             'wilayah:id,nama',
@@ -152,9 +159,12 @@ class PumkMitraController extends Controller
         $tahun = $this->requestedYear($request) ?? 'terbaru';
         $kartu = $pinjaman ? $kartuPiutang->buat($pinjaman, tahun: $tahun) : null;
         $calculation = $kartu['calculation'] ?? null;
+        $settlementPreview = $pinjaman?->status === PumkPinjaman::STATUS_AKTIF && $pinjaman->is_active
+            ? $settlement->preview($pinjaman)
+            : null;
         $pinjamanList = $mitra->pinjaman;
 
-        return view('pumk-admin.mitra.show', compact('mitra', 'pinjaman', 'pinjamanList', 'kartu', 'calculation'));
+        return view('pumk-admin.mitra.show', compact('mitra', 'pinjaman', 'pinjamanList', 'kartu', 'calculation', 'settlementPreview'));
     }
 
     public function edit(PumkMitra $mitra): View
@@ -175,21 +185,25 @@ class PumkMitraController extends Controller
         PiutangCalculator $calculator,
         PumkActivityLogger $activity,
         PumkLoanDocumentService $documents,
+        PumkClassificationService $classifications,
     ): RedirectResponse {
         $data = $this->validateMitra($request);
 
-        $reactivated = DB::transaction(function () use ($request, $data, $mitra, $calculator, $activity, $documents): bool {
-            $mitra->update($this->mitraPayload($data));
+        $reactivated = DB::transaction(function () use ($request, $data, $mitra, $calculator, $activity, $documents, $classifications): bool {
+            $lockedMitra = PumkMitra::query()->lockForUpdate()->findOrFail($mitra->id);
+            $lockedMitra->update($this->mitraPayload($data));
+            $sectorChanged = $lockedMitra->wasChanged(['sektor_sumber', 'sektor_usaha_id']);
+            $regionChanged = $lockedMitra->wasChanged(['wilayah_sumber', 'wilayah_id']);
 
             /** @var PumkPinjaman|null $pinjaman */
-            $pinjaman = $mitra->pinjaman()->where('status', PumkPinjaman::STATUS_AKTIF)->where('is_active', true)->latest('tanggal_pencairan')->latest('id')->first();
+            $pinjaman = $lockedMitra->pinjaman()->where('status', PumkPinjaman::STATUS_AKTIF)->where('is_active', true)->latest('tanggal_pencairan')->latest('id')->lockForUpdate()->first();
             $payload = $this->pinjamanPayload($data);
             $reactivated = $pinjaman === null;
 
             if ($pinjaman) {
                 $pinjaman->update($payload);
             } else {
-                $pinjaman = $mitra->pinjaman()->create($payload + [
+                $pinjaman = $lockedMitra->pinjaman()->create($payload + [
                     'source_key' => hash('sha256', 'manual-pinjaman|'.Str::uuid()),
                     'created_by' => auth('pumk')->id(),
                     'status' => PumkPinjaman::STATUS_AKTIF,
@@ -197,8 +211,19 @@ class PumkMitraController extends Controller
                 ]);
             }
 
-            $mitra->update(['is_active' => true]);
+            $qualityBefore = $pinjaman->kolektibilitas;
+            $lockedMitra->update(['is_active' => true]);
             $calculator->sinkronkanCache($pinjaman);
+            $effective = CarbonImmutable::now('Asia/Jakarta');
+            if ($sectorChanged) {
+                $classifications->record($lockedMitra, null, 'sektor', $lockedMitra->sektor_sumber, $effective, 'admin', (string) Str::uuid(), auth('pumk')->id());
+            }
+            if ($regionChanged) {
+                $classifications->record($lockedMitra, null, 'wilayah', $lockedMitra->wilayah_sumber, $effective, 'admin', (string) Str::uuid(), auth('pumk')->id());
+            }
+            if ($reactivated || $qualityBefore !== $pinjaman->fresh()->kolektibilitas) {
+                $classifications->record(null, $pinjaman, 'kolektibilitas', $pinjaman->fresh()->kolektibilitas, $effective, 'estimate', (string) Str::uuid(), auth('pumk')->id());
+            }
             $this->storeContractDocuments($request, $pinjaman, $documents);
             $activity->record(
                 $reactivated ? 'reactivate_partner' : 'update_loan',
@@ -226,7 +251,7 @@ class PumkMitraController extends Controller
         abort_unless($pinjaman->status === PumkPinjaman::STATUS_AKTIF && $pinjaman->is_active, 409, 'Pinjaman yang sudah selesai tidak dapat menerima angsuran baru.');
         $data = $this->validateAngsuran($request);
 
-        $periode = CarbonImmutable::createFromFormat('Y-m', $data['periode'])->startOfMonth();
+        $periode = CarbonImmutable::createFromFormat('!Y-m', $data['periode'])->startOfMonth();
         $alreadyExists = $pinjaman->angsuran()->whereDate('periode', $periode)->exists();
 
         if ($alreadyExists) {
@@ -249,17 +274,21 @@ class PumkMitraController extends Controller
             );
         }
 
-        DB::transaction(function () use ($data, $periode, $pinjaman, $calculator, $confirmed, $request, $proofs): void {
-            $saldoAwal = $pinjaman->saldoAwal()->lockForUpdate()->first();
+        DB::transaction(function () use ($data, $periode, $mitra, $pinjaman, $calculator, $confirmed, $request, $proofs): void {
+            PumkMitra::query()->lockForUpdate()->findOrFail($mitra->id);
+            $lockedLoan = PumkPinjaman::query()->lockForUpdate()->findOrFail($pinjaman->id);
+            abort_unless($lockedLoan->status === PumkPinjaman::STATUS_AKTIF && $lockedLoan->is_active, 409, 'Pinjaman yang sudah selesai tidak dapat menerima angsuran baru.');
+            abort_if($lockedLoan->angsuran()->whereDate('periode', $periode)->exists(), 409, 'Angsuran periode ini sudah tercatat.');
+            $saldoAwal = $lockedLoan->saldoAwal()->lockForUpdate()->first();
 
             if ($saldoAwal !== null && $this->periodeTumpangTindihSaldoAwal($periode, $saldoAwal->cutoff_date)) {
                 abort_unless($confirmed, 409, 'Saldo Awal berubah. Muat ulang halaman lalu konfirmasi kembali.');
                 $saldoAwal->delete();
-                $calculator->bangunUlangBaselineTanpaSaldoAwal($pinjaman);
+                $calculator->bangunUlangBaselineTanpaSaldoAwal($lockedLoan);
             }
 
             $angsuran = PumkAngsuran::create([
-                'pinjaman_id' => $pinjaman->id,
+                'pinjaman_id' => $lockedLoan->id,
                 'periode' => $periode,
                 'nomor_bukti' => filled($data['nomor_bukti'] ?? null) ? trim($data['nomor_bukti']) : null,
                 'pokok' => $data['pokok'],
@@ -300,7 +329,7 @@ class PumkMitraController extends Controller
         );
 
         $data = $this->validateAngsuran($request);
-        $periode = CarbonImmutable::createFromFormat('Y-m', $data['periode'])->startOfMonth();
+        $periode = CarbonImmutable::createFromFormat('!Y-m', $data['periode'])->startOfMonth();
         $alreadyExists = $pinjaman->angsuran()
             ->whereKeyNot($angsuran->id)
             ->whereDate('periode', $periode)
@@ -326,16 +355,23 @@ class PumkMitraController extends Controller
             );
         }
 
-        DB::transaction(function () use ($angsuran, $data, $periode, $pinjaman, $calculator, $confirmed, $request, $proofs): void {
-            $saldoAwal = $pinjaman->saldoAwal()->lockForUpdate()->first();
+        DB::transaction(function () use ($angsuran, $data, $periode, $mitra, $pinjaman, $calculator, $confirmed, $request, $proofs): void {
+            PumkMitra::query()->lockForUpdate()->findOrFail($mitra->id);
+            $lockedLoan = PumkPinjaman::query()->lockForUpdate()->findOrFail($pinjaman->id);
+            abort_unless($lockedLoan->status === PumkPinjaman::STATUS_AKTIF && $lockedLoan->is_active, 409, 'Angsuran pada pinjaman yang sudah selesai tidak dapat diubah.');
+            $lockedPayment = $lockedLoan->angsuran()->lockForUpdate()->findOrFail($angsuran->id);
+            abort_if($lockedPayment->batch_id !== null || $lockedPayment->created_by === null, 403,
+                'Angsuran hasil impor tidak dapat diedit dari kartu piutang.');
+            abort_if($lockedLoan->angsuran()->whereKeyNot($lockedPayment->id)->whereDate('periode', $periode)->exists(), 409, 'Angsuran periode ini sudah tercatat.');
+            $saldoAwal = $lockedLoan->saldoAwal()->lockForUpdate()->first();
 
             if ($saldoAwal !== null && $this->periodeTumpangTindihSaldoAwal($periode, $saldoAwal->cutoff_date)) {
                 abort_unless($confirmed, 409, 'Saldo Awal berubah. Muat ulang halaman lalu konfirmasi kembali.');
                 $saldoAwal->delete();
-                $calculator->bangunUlangBaselineTanpaSaldoAwal($pinjaman);
+                $calculator->bangunUlangBaselineTanpaSaldoAwal($lockedLoan);
             }
 
-            $angsuran->update([
+            $lockedPayment->update([
                 'periode' => $periode,
                 'nomor_bukti' => filled($data['nomor_bukti'] ?? null) ? trim($data['nomor_bukti']) : null,
                 'pokok' => $data['pokok'],
@@ -343,7 +379,7 @@ class PumkMitraController extends Controller
                 'denda' => $data['denda'],
             ]);
             if ($request->hasFile('bukti_pembayaran')) {
-                $proofs->replace($angsuran->fresh(), $request->file('bukti_pembayaran'));
+                $proofs->replace($lockedPayment->fresh(), $request->file('bukti_pembayaran'));
             }
         });
 
@@ -358,55 +394,22 @@ class PumkMitraController extends Controller
         Request $request,
         PumkMitra $mitra,
         PumkPinjaman $pinjaman,
-        KartuPiutangService $kartuPiutang,
-        PumkActivityLogger $activity,
+        PumkLoanSettlementService $settlement,
     ): RedirectResponse {
         $this->ensureLoanBelongsToMitra($mitra, $pinjaman);
-        $data = $request->validate(['lunas_note' => ['nullable', 'string', 'max:1000']]);
-
-        if ($pinjaman->status === PumkPinjaman::STATUS_LUNAS) {
-            return back()->with('success', 'Pinjaman sudah berstatus lunas.');
-        }
-        abort_unless(
-            $pinjaman->status === PumkPinjaman::STATUS_AKTIF && $pinjaman->is_active,
-            409,
-            'Hanya pinjaman aktif yang dapat ditandai lunas.',
+        $data = $request->validate([
+            'lunas_note' => ['nullable', 'string', 'max:1000'],
+            'konfirmasi_kelebihan_bayar' => ['nullable', 'boolean'],
+        ]);
+        $result = $settlement->settle(
+            $mitra->id, $pinjaman->id, $data['lunas_note'] ?? null,
+            $request->boolean('konfirmasi_kelebihan_bayar'), (int) auth('pumk')->id(),
         );
 
-        $kartu = $kartuPiutang->buat($pinjaman);
-        $calculation = $kartu['calculation'];
-        $hasRemaining = bccomp((string) $calculation['sisa_pokok'], '0', 2) !== 0
-            || bccomp((string) $calculation['sisa_bunga'], '0', 2) !== 0
-            || bccomp((string) $kartu['kekurangan'], '0', 2) !== 0;
-
-        if ($hasRemaining) {
-            return back()->withErrors([
-                'lunas' => 'Pinjaman belum dapat ditandai lunas karena sisa pokok atau bunga pada Kartu Piutang belum nol.',
-            ]);
-        }
-
-        DB::transaction(function () use ($mitra, $pinjaman, $data, $activity): void {
-            $lockedLoan = PumkPinjaman::query()->lockForUpdate()->findOrFail($pinjaman->id);
-            abort_if($lockedLoan->status === PumkPinjaman::STATUS_LUNAS, 409, 'Pinjaman sudah ditandai lunas oleh proses lain.');
-
-            $lockedLoan->update([
-                'status' => PumkPinjaman::STATUS_LUNAS,
-                'is_active' => false,
-                'lunas_at' => now(),
-                'lunas_by' => auth('pumk')->id(),
-                'lunas_note' => filled($data['lunas_note'] ?? null) ? trim($data['lunas_note']) : null,
-            ]);
-            $activity->record('mark_loan_paid', 'pumk_internal', 'Menandai pinjaman sebagai lunas.', $lockedLoan);
-
-            $hasActiveLoan = $mitra->pinjaman()->where('status', PumkPinjaman::STATUS_AKTIF)->where('is_active', true)->exists();
-            $mitra->update(['is_active' => $hasActiveLoan]);
-            if (! $hasActiveLoan) {
-                $activity->record('archive_partner', 'pumk_internal', 'Memindahkan Mitra ke arsip karena tidak memiliki pinjaman aktif.', $mitra, null);
-            }
-        });
-
         return redirect()->route('pumk-admin.mitra.show', [$mitra, 'pinjaman' => $pinjaman->id])
-            ->with('success', 'Pinjaman berhasil ditandai lunas. Seluruh histori tetap tersimpan.');
+            ->with('success', $result['status'] === 'already_paid'
+                ? 'Pinjaman sudah berstatus lunas; catatan penutupan pertama tetap tersimpan.'
+                : 'Pinjaman berhasil ditandai lunas. Seluruh histori tetap tersimpan.');
     }
 
     public function exportExcel(

@@ -33,15 +33,18 @@ class PumkMonitoringCaptureService
             $report = PumkMonitoringReport::query()->whereDate('as_of_date', $date)->lockForUpdate()->firstOrFail();
             $position = $this->monitoring->positionForCapture($asOf);
             $rows = collect($position['rows'])->sortBy('pinjaman_id')->values();
-            if ($rows->isEmpty() && $position['unknown'] === 0) {
+            if ($rows->isEmpty() && $position['unknown'] === 0 && $position['closed'] === 0) {
                 throw new InvalidArgumentException('Belum ada posisi pinjaman yang dapat dicatat untuk tanggal ini.');
             }
             $hash = hash('sha256', json_encode([
                 $rows->map(fn (array $row): array => [
                     $row['pinjaman_id'], $row['mitra_id'], $row['saldo_pokok'], $row['saldo_bunga'],
-                    $row['sektor'], $row['wilayah'], $row['kolektibilitas'], $row['classification_limited'], $row['source_kind'],
+                    $row['sektor'], $row['wilayah'], $row['kolektibilitas'], $row['classification_limited'],
+                    $row['classification_sources'], $row['classification_dates'],
+                    $row['classification_reasons'], $row['source_kind'],
                 ])->all(),
-                $position['unknown'],
+                collect($position['unknown_details'])->sortBy('pinjaman_id')->values()->all(),
+                collect($position['closed_ids'])->sort()->values()->all(),
             ], JSON_THROW_ON_ERROR));
 
             if ($report->revision > 0 && hash_equals($report->source_hash, $hash)) {

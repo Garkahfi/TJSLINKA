@@ -39,6 +39,9 @@
             <Row ss:Height="24"><Cell ss:MergeAcross="7" ss:StyleID="Subtitle"><Data ss:Type="String">PROGRAM KEMITRAAN DAN BINA LINGKUNGAN</Data></Cell></Row>
             <Row ss:Height="30"><Cell ss:MergeAcross="7" ss:StyleID="Title"><Data ss:Type="String">KARTU PIUTANG</Data></Cell></Row>
             <Row><Cell ss:MergeAcross="7" ss:StyleID="Subtitle"><Data ss:Type="String">{{ $kartu['periode_label'] }}</Data></Cell></Row>
+            @if($pinjaman->status === 'lunas')
+                <Row><Cell ss:MergeAcross="7"><Data ss:Type="String">Pinjaman ditutup pada {{ $pinjaman->lunas_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '-' }}; {{ $pinjaman->lunas_reason ? 'jenis '.str_replace('_', ' ', $pinjaman->lunas_reason).', saldo asli saat ditutup Rp '.number_format((float) $pinjaman->lunas_total_saldo, 2, ',', '.') : 'pelunasan lama, rincian selisih belum tercatat' }}. Saldo kartu tidak dihapus.</Data></Cell></Row>
+            @endif
             <Row><Cell ss:MergeAcross="1" ss:StyleID="Label"><Data ss:Type="String">Nama Perusahaan</Data></Cell><Cell ss:MergeAcross="5"><Data ss:Type="String">{{ $mitra->nama_mitra }}</Data></Cell></Row>
             <Row><Cell ss:MergeAcross="1" ss:StyleID="Label"><Data ss:Type="String">Pemilik</Data></Cell><Cell ss:MergeAcross="5"><Data ss:Type="String">{{ $mitra->nama_pemilik ?: '-' }}</Data></Cell></Row>
             <Row><Cell ss:MergeAcross="1" ss:StyleID="Label"><Data ss:Type="String">Wilayah</Data></Cell><Cell ss:MergeAcross="2"><Data ss:Type="String">{{ $mitra->wilayah?->nama ?? $mitra->wilayah_sumber ?? '-' }}</Data></Cell><Cell ss:StyleID="Label"><Data ss:Type="String">Status</Data></Cell><Cell ss:MergeAcross="1"><Data ss:Type="String">{{ $statusLabels[$status] ?? 'Belum dihitung' }}</Data></Cell></Row>

@@ -44,7 +44,14 @@
                 <div class="metric"><span>Sisa piutang</span><strong style="font-size:21px">Rp {{ number_format((float) $kartu['kekurangan'], 0, ',', '.') }}</strong></div>
             </div>
             @if($pinjaman->status === 'lunas')
-                <p class="notice">Ditandai lunas pada {{ $pinjaman->lunas_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '-' }} oleh {{ $pinjaman->pelunas?->name ?? 'akun yang tidak tersedia' }}. {{ $pinjaman->lunas_note ?: '' }}</p>
+                <p class="notice">Ditandai lunas pada {{ $pinjaman->lunas_at?->timezone('Asia/Jakarta')->format('d/m/Y H:i') ?? '-' }} oleh {{ $pinjaman->pelunas?->name ?? 'akun yang tidak tersedia' }}.
+                    @if($pinjaman->lunas_reason)
+                        Jenis: {{ str_replace('_', ' ', $pinjaman->lunas_reason) }}. Saldo saat ditutup: Rp {{ number_format((float) $pinjaman->lunas_total_saldo, 2, ',', '.') }} (pokok Rp {{ number_format((float) $pinjaman->lunas_saldo_pokok, 2, ',', '.') }}, bunga Rp {{ number_format((float) $pinjaman->lunas_saldo_bunga, 2, ',', '.') }}). Batas toleransi saat itu Rp {{ number_format((float) $pinjaman->lunas_tolerance_applied, 2, ',', '.') }}.
+                    @else
+                        Pelunasan lama; rincian selisih saat penutupan belum tercatat.
+                    @endif
+                    {{ $pinjaman->lunas_note ?: '' }}
+                </p>
             @endif
             <section class="panel">
                 <h2>Riwayat kartu piutang</h2>

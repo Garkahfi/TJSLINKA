@@ -67,6 +67,15 @@ class PumkDatabaseSchemaTest extends TestCase
             'berkas_jaminan_path',
             'tahun_pencairan',
             'baseline_sumber',
+            'lunas_reason',
+            'lunas_saldo_pokok',
+            'lunas_saldo_bunga',
+            'lunas_total_saldo',
+            'lunas_tolerance_applied',
+        ]));
+        $this->assertTrue(Schema::hasColumns('pumk_classification_history', [
+            'mitra_id', 'pinjaman_id', 'attribute', 'value', 'effective_from',
+            'recorded_at', 'source_kind', 'source_ref', 'recorded_by', 'fingerprint',
         ]));
         $this->assertTrue(Schema::hasColumn('pumk_angsuran', 'nomor_bukti'));
     }

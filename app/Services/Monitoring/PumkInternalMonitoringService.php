@@ -4,6 +4,7 @@ namespace App\Services\Monitoring;
 
 use App\Models\PumkMonitoringReport;
 use App\Models\PumkPinjaman;
+use App\Services\Pumk\PumkLoanBalanceResolver;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -12,6 +13,13 @@ use InvalidArgumentException;
 
 class PumkInternalMonitoringService
 {
+    public const MIN_REPORT_YEAR = 2025;
+
+    public function __construct(
+        private readonly PumkLoanBalanceResolver $balances,
+        private readonly PumkClassificationService $classifications,
+    ) {}
+
     private const MONTHS = [
         1 => 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
     ];
@@ -19,29 +27,18 @@ class PumkInternalMonitoringService
     /** @return array<string, mixed> */
     public function report(?int $requestedYear = null): array
     {
-        if ($requestedYear !== null && ($requestedYear < 1900 || $requestedYear > 2100)) {
-            throw new InvalidArgumentException('Tahun laporan tidak valid.');
-        }
-
         $today = CarbonImmutable::now('Asia/Jakarta')->startOfDay();
-        $loans = PumkPinjaman::query()->with(['mitra.sektorUsaha', 'mitra.wilayah', 'saldoAwal', 'angsuran'])->get();
+        if ($requestedYear !== null && ($requestedYear < self::MIN_REPORT_YEAR || $requestedYear > $today->year)) {
+            throw new InvalidArgumentException('Tahun laporan PUMK INKA di luar rentang yang tersedia.');
+        }
+        $loans = PumkPinjaman::query()->with([
+            'mitra.sektorUsaha', 'mitra.wilayah', 'mitra.classificationHistory',
+            'classificationHistory', 'saldoAwal', 'angsuran',
+        ])->get();
         $reports = PumkMonitoringReport::query()->with('positions')->whereDate('as_of_date', '<=', $today->toDateString())->orderBy('as_of_date')->get();
         $evidence = $this->evidenceDates($loans, $reports, $today);
-        $years = $evidence->map(fn (CarbonImmutable $date): int => $date->year)->unique()->sortDesc()->values();
-        $latestEvidence = $evidence->sortBy(fn (CarbonImmutable $date): int => $date->getTimestamp())->last();
-
-        if ($latestEvidence !== null && $latestEvidence->year < $today->year) {
-            $carried = $this->positionsAt($loans, $latestEvidence, $reports);
-            if (collect($carried['rows'])->contains(fn (array $row): bool => bccomp($row['total'], '0', 2) > 0)) {
-                $years->push($today->year);
-                $years = $years->unique()->sortDesc()->values();
-            }
-        }
-
-        $year = $requestedYear ?? ($years->contains($today->year) ? $today->year : $years->first());
-        if ($year === null || $year > $today->year || ! $years->contains($year)) {
-            return $this->emptyReport($year, $years->all());
-        }
+        $years = collect(range(self::MIN_REPORT_YEAR, $today->year))->reverse()->values();
+        $year = $requestedYear ?? $today->year;
 
         $yearStart = CarbonImmutable::create($year, 1, 1, 0, 0, 0, 'Asia/Jakarta');
         $yearEnd = CarbonImmutable::create($year, 12, 31, 0, 0, 0, 'Asia/Jakarta')->min($today);
@@ -55,11 +52,14 @@ class PumkInternalMonitoringService
 
         $positions = $this->positionsAt($loans, $asOf, $reports);
         $rows = collect($positions['rows']);
-        $hasKnownPosition = $rows->isNotEmpty();
-        $principal = $rows->reduce(fn (string $sum, array $row): string => bcadd($sum, $row['saldo_pokok'], 2), '0.00');
-        $interest = $rows->reduce(fn (string $sum, array $row): string => bcadd($sum, $row['saldo_bunga'], 2), '0.00');
+        $positiveRows = $rows->filter(fn (array $row): bool => bccomp($row['total'], '0', 2) > 0);
+        $negativeRows = $rows->filter(fn (array $row): bool => bccomp($row['total'], '0', 2) < 0);
+        $hasKnownPosition = $rows->isNotEmpty() || $positions['closed'] > 0;
+        $principal = $positiveRows->reduce(fn (string $sum, array $row): string => bcadd($sum, $row['saldo_pokok'], 2), '0.00');
+        $interest = $positiveRows->reduce(fn (string $sum, array $row): string => bcadd($sum, $row['saldo_bunga'], 2), '0.00');
         $total = bcadd($principal, $interest, 2);
-        $group = fn (string $field) => $rows->groupBy($field)
+        $negativeTotal = $negativeRows->reduce(fn (string $sum, array $row): string => bcadd($sum, $row['total'], 2), '0.00');
+        $group = fn (string $field) => $positiveRows->groupBy($field)
             ->map(fn (Collection $items, string $label): array => [
                 'label' => $label,
                 'jumlah' => $items->pluck('mitra_id')->unique()->count(),
@@ -81,8 +81,12 @@ class PumkInternalMonitoringService
             'as_of_date' => $asOf->toDateString(),
             'updated_at' => $updatedAt,
             'known_loans' => $rows->count(),
+            'closed_loans' => $positions['closed'],
+            'positive_loans' => $positiveRows->count(),
             'unknown_loans' => $positions['unknown'],
-            'negative_loans' => $rows->filter(fn (array $row): bool => bccomp($row['total'], '0', 2) < 0)->count(),
+            'negative_loans' => $negativeRows->count(),
+            'negative_total' => (float) $negativeTotal,
+            'net_known_balance' => $hasKnownPosition ? (float) bcadd($total, $negativeTotal, 2) : null,
             'payment_count' => $activity->count(),
             'activity_pokok' => $activity->reduce(fn (string $sum, $payment): string => bcadd($sum, (string) $payment->pokok, 2), '0.00'),
             'activity_bunga' => $activity->reduce(fn (string $sum, $payment): string => bcadd($sum, (string) $payment->bunga, 2), '0.00'),
@@ -90,13 +94,13 @@ class PumkInternalMonitoringService
             'saldo_bunga' => $hasKnownPosition ? (float) $interest : null,
             'total_saldo_piutang' => $hasKnownPosition ? (float) $total : null,
             'total_binaan' => $hasKnownPosition
-                ? $rows->filter(fn (array $row): bool => bccomp($row['total'], '0', 2) > 0)->pluck('mitra_id')->unique()->count()
+                ? $positiveRows->pluck('mitra_id')->unique()->count()
                 : null,
             'sektor' => $group('sektor'),
             'kolektibilitas' => $group('kolektibilitas'),
             'sebaran_provinsi' => $group('provinsi'),
             'tren_kolektibilitas' => $this->trend($year, $yearEnd, $loans, $reports, $evidence),
-            'classification_limited' => $rows->contains(fn (array $row): bool => $row['classification_limited']),
+            'classification_limited' => $positiveRows->contains(fn (array $row): bool => $row['classification_limited']),
             'snapshot_revision' => $reports->first(fn (PumkMonitoringReport $report): bool => $report->as_of_date->toDateString() === $asOf->toDateString())?->revision,
             'snapshot_stale' => (bool) $reports->first(fn (PumkMonitoringReport $report): bool => $report->as_of_date->toDateString() === $asOf->toDateString())?->needs_reconcile,
         ];
@@ -105,7 +109,10 @@ class PumkInternalMonitoringService
     /** @return array{rows:list<array<string,mixed>>,unknown:int,source_updated_at:?string} */
     public function positionForCapture(CarbonImmutable $asOf): array
     {
-        $loans = PumkPinjaman::query()->with(['mitra.sektorUsaha', 'mitra.wilayah', 'saldoAwal', 'angsuran'])->get();
+        $loans = PumkPinjaman::query()->with([
+            'mitra.sektorUsaha', 'mitra.wilayah', 'mitra.classificationHistory',
+            'classificationHistory', 'saldoAwal', 'angsuran',
+        ])->get();
         $reports = PumkMonitoringReport::query()->with('positions')
             ->whereDate('as_of_date', '<=', $asOf->toDateString())->orderBy('as_of_date')->get();
         $positions = $this->positionsAt($loans, $asOf, $reports);
@@ -113,10 +120,78 @@ class PumkInternalMonitoringService
         return $positions + ['source_updated_at' => $this->lastSourceUpdate($loans, $asOf, $reports)];
     }
 
+    /** @return array{report:array<string,mixed>,items:list<array<string,mixed>>} */
+    public function diagnostics(?int $year = null): array
+    {
+        $report = $this->report($year);
+        if ($report['as_of_date'] === null) {
+            return ['report' => $report, 'items' => []];
+        }
+        $asOf = CarbonImmutable::parse($report['as_of_date'], 'Asia/Jakarta')->startOfDay();
+        $loans = PumkPinjaman::query()->with([
+            'mitra.sektorUsaha', 'mitra.wilayah', 'mitra.classificationHistory',
+            'classificationHistory', 'saldoAwal', 'angsuran',
+        ])->get();
+        $reports = PumkMonitoringReport::query()->with('positions')
+            ->whereDate('as_of_date', '<=', $asOf->toDateString())->orderBy('as_of_date')->get();
+        $positions = $this->positionsAt($loans, $asOf, $reports);
+        $loanById = $loans->keyBy('id');
+        $items = [];
+        foreach ($positions['unknown_details'] as $item) {
+            $loan = $loanById->get($item['pinjaman_id']);
+            $items[] = $this->diagnosticItem($loan, $asOf, $item['reason_code'], $item['source_kind'] ?? 'unknown');
+        }
+        foreach ($positions['rows'] as $row) {
+            $loan = $loanById->get($row['pinjaman_id']);
+            foreach ($row['classification_reasons'] as $attribute => $reason) {
+                if ($reason === null) {
+                    continue;
+                }
+                $category = $attribute === 'provinsi' ? 'wilayah' : $attribute;
+                $items[] = $this->diagnosticItem($loan, $asOf, $reason,
+                    $row['classification_sources'][$category], $row,
+                    $row['classification_dates'][$category], $attribute);
+            }
+            $principalSign = bccomp($row['saldo_pokok'], '0', 2);
+            $interestSign = bccomp($row['saldo_bunga'], '0', 2);
+            if ($principalSign * $interestSign < 0) {
+                $items[] = $this->diagnosticItem($loan, $asOf, 'mixed_component_balance', $row['source_kind'], $row);
+            } elseif (bccomp($row['total'], '0', 2) < 0) {
+                $items[] = $this->diagnosticItem($loan, $asOf, 'negative_balance_unreviewed', $row['source_kind'], $row);
+            }
+        }
+        foreach ($loans as $loan) {
+            if ((int) $loan->tahun_pencairan === 1900
+                || $loan->tanggal_pencairan?->year === 1900
+                || $this->loanStartDate($loan) === null) {
+                $items[] = $this->diagnosticItem($loan, $asOf, 'invalid_source_date', 'source_date');
+            }
+        }
+
+        return ['report' => $report, 'items' => $items];
+    }
+
+    /** @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private function diagnosticItem(PumkPinjaman $loan, CarbonImmutable $asOf, string $reason, string $sourceKind, array $row = [], ?string $sourceDate = null, ?string $attribute = null): array
+    {
+        return [
+            'pinjaman_id' => $loan->id, 'mitra_id' => $loan->mitra_id,
+            'nama_mitra' => $loan->mitra?->nama_mitra,
+            'as_of_date' => $asOf->toDateString(), 'reason_code' => $reason,
+            'attribute' => $attribute,
+            'source_kind' => $sourceKind, 'source_date' => $sourceDate ?? $loan->source_updated_at?->toDateString(),
+            'saldo_pokok' => $row['saldo_pokok'] ?? null,
+            'saldo_bunga' => $row['saldo_bunga'] ?? null,
+            'total' => $row['total'] ?? null,
+        ];
+    }
+
     /**
      * @param  EloquentCollection<int, PumkPinjaman>  $loans
      * @param  EloquentCollection<int, PumkMonitoringReport>  $reports
-     * @return array{rows:list<array<string, mixed>>,unknown:int}
+     * @return array{rows:list<array<string, mixed>>,unknown:int,closed:int,closed_ids:list<int>,unknown_details:list<array<string,mixed>>}
      */
     public function positionsAt(EloquentCollection $loans, CarbonImmutable $asOf, EloquentCollection $reports): array
     {
@@ -124,95 +199,70 @@ class PumkInternalMonitoringService
         $snapshotPositions = $snapshot?->positions->keyBy('pinjaman_id') ?? collect();
         $rows = [];
         $unknown = 0;
+        $closed = 0;
+        $closedIds = [];
+        $unknownDetails = [];
 
         foreach ($loans as $loan) {
             $start = $this->loanStartDate($loan);
             if ($start === null || $start->greaterThan($asOf)) {
                 continue;
             }
-            $position = $this->loanBalanceAt($loan, $asOf);
-            if ($position === null) {
-                $unknown++;
+            if ($loan->status === PumkPinjaman::STATUS_LUNAS && $loan->lunas_at !== null
+                && $this->completionDate($loan->lunas_at)->lessThanOrEqualTo($asOf)) {
+                $closed++;
+                $closedIds[] = $loan->id;
 
                 continue;
             }
-            $total = bcadd($position['pokok'], $position['bunga'], 2);
-            if ($loan->lunas_at !== null && $this->localDate($loan->lunas_at)->lessThanOrEqualTo($asOf) && bccomp($total, '0', 2) <= 0) {
+            $position = $this->balances->resolve($loan, $asOf);
+            if (! $position['known']) {
+                $unknown++;
+                $unknownDetails[] = [
+                    'pinjaman_id' => $loan->id, 'mitra_id' => $loan->mitra_id,
+                    'reason_code' => $position['reason_code'], 'source_kind' => $position['source_kind'],
+                ];
+
                 continue;
             }
+            $total = $position['total'];
 
             $recorded = $snapshotPositions->get($loan->id);
-            $historicalAttributes = $loan->mitra?->updated_at?->lessThanOrEqualTo($asOf->endOfDay())
-                && $loan->updated_at?->lessThanOrEqualTo($asOf->endOfDay());
-            $useRecorded = $recorded !== null
-                && ($snapshot->as_of_date->toDateString() === $asOf->toDateString() || ! $historicalAttributes);
-            $sector = $useRecorded ? $recorded->sektor
-                : ($historicalAttributes ? ($loan->mitra?->sektorUsaha?->nama ?? $loan->mitra?->sektor_sumber) : null);
-            $region = $useRecorded ? $recorded->wilayah
-                : ($historicalAttributes ? ($loan->mitra?->wilayah?->nama ?? $loan->mitra?->wilayah_sumber) : null);
-            $quality = $useRecorded ? $recorded->kolektibilitas
-                : ($historicalAttributes ? $loan->kolektibilitas : null);
+            $snapshotDate = $snapshot ? $this->localDate($snapshot->as_of_date) : null;
+            $sector = $this->classifications->resolve($loan, 'sektor', $asOf, $recorded, $snapshotDate);
+            $region = $this->classifications->resolve($loan, 'wilayah', $asOf, $recorded, $snapshotDate);
+            $quality = $this->classifications->resolve($loan, 'kolektibilitas', $asOf, $recorded, $snapshotDate);
+            $province = filled($region['value']) ? $this->provinceForRegion($region['value']) : null;
             $rows[] = [
                 'pinjaman_id' => $loan->id,
                 'mitra_id' => $loan->mitra_id,
-                'saldo_pokok' => $position['pokok'],
-                'saldo_bunga' => $position['bunga'],
+                'saldo_pokok' => $position['saldo_pokok'],
+                'saldo_bunga' => $position['saldo_bunga'],
                 'total' => $total,
-                'sektor' => filled($sector) ? $sector : 'Belum Terverifikasi',
-                'wilayah' => filled($region) ? $region : 'Belum Terverifikasi',
-                'provinsi' => filled($region) ? $this->provinceForRegion($region) : 'Belum Terverifikasi',
-                'kolektibilitas' => filled($quality) ? $quality : 'Belum Dinilai',
-                'classification_limited' => ($useRecorded ? $recorded->classification_limited : ! $historicalAttributes)
-                    || blank($sector) || blank($region) || blank($quality),
+                'sektor' => $sector['value'] ?? 'Belum Terverifikasi',
+                'wilayah' => $region['value'] ?? 'Belum Terverifikasi',
+                'provinsi' => $province ?? (filled($region['value']) ? 'Provinsi Belum Dipetakan' : 'Belum Terverifikasi'),
+                'kolektibilitas' => $quality['value'] ?? 'Belum Dinilai',
+                'classification_limited' => $sector['limited'] || $region['limited'] || $quality['limited'] || $province === null,
+                'classification_sources' => [
+                    'sektor' => $sector['source_kind'], 'wilayah' => $region['source_kind'],
+                    'kolektibilitas' => $quality['source_kind'],
+                ],
+                'classification_dates' => [
+                    'sektor' => $sector['effective_date'], 'wilayah' => $region['effective_date'],
+                    'kolektibilitas' => $quality['effective_date'],
+                ],
+                'classification_reasons' => [
+                    'sektor' => $sector['reason_code'], 'wilayah' => $region['reason_code'],
+                    'kolektibilitas' => $quality['reason_code'],
+                    'provinsi' => filled($region['value']) && $province === null ? 'province_unmapped' : null,
+                ],
                 'source_kind' => $position['source_kind'],
             ];
         }
 
-        return ['rows' => $rows, 'unknown' => $unknown];
-    }
-
-    /** @return array{pokok:string,bunga:string,source_kind:string}|null */
-    private function loanBalanceAt(PumkPinjaman $loan, CarbonImmutable $asOf): ?array
-    {
-        if ($loan->source_updated_at !== null) {
-            $sourceDate = $this->localDate($loan->source_updated_at);
-            $baseline = $loan->baseline_sumber ?? [];
-            if ($sourceDate->greaterThan($asOf) || ! isset($baseline['sisa_pokok'], $baseline['sisa_bunga'])) {
-                return null;
-            }
-            $payments = $loan->angsuran->filter(fn ($payment): bool => $payment->batch_id === null
-                && $payment->created_at !== null
-                && $payment->created_at->greaterThan($loan->source_updated_at)
-                && $this->localDate($payment->periode)->lessThanOrEqualTo($asOf));
-            $principal = (string) $baseline['sisa_pokok'];
-            $interest = (string) $baseline['sisa_bunga'];
-            foreach ($payments as $payment) {
-                $principal = bcsub($principal, (string) $payment->pokok, 2);
-                $interest = bcsub($interest, (string) $payment->bunga, 2);
-            }
-
-            return ['pokok' => $principal, 'bunga' => $interest, 'source_kind' => 'baseline_sumber'];
-        }
-
-        if ($loan->pinjaman_pokok === null || $loan->pinjaman_bunga === null) {
-            return null;
-        }
-        $opening = $loan->saldoAwal;
-        if ($opening !== null && $this->localDate($opening->cutoff_date)->greaterThan($asOf)) {
-            return null;
-        }
-        $principal = bcsub((string) $loan->pinjaman_pokok, (string) ($opening?->pokok_masuk ?? '0.00'), 2);
-        $interest = bcsub((string) $loan->pinjaman_bunga, (string) ($opening?->bunga_masuk ?? '0.00'), 2);
-        foreach ($loan->angsuran as $payment) {
-            if ($payment->periode === null || $this->localDate($payment->periode)->greaterThan($asOf)
-                || ($opening !== null && $this->localDate($payment->periode)->lessThanOrEqualTo($this->localDate($opening->cutoff_date)))) {
-                continue;
-            }
-            $principal = bcsub($principal, (string) $payment->pokok, 2);
-            $interest = bcsub($interest, (string) $payment->bunga, 2);
-        }
-
-        return ['pokok' => $principal, 'bunga' => $interest, 'source_kind' => $opening ? 'saldo_awal' : 'riwayat_rinci'];
+        return ['rows' => $rows, 'unknown' => $unknown, 'closed' => $closed,
+            'closed_ids' => $closedIds, 'unknown_details' => $unknownDetails];
     }
 
     /** @return Collection<int, CarbonImmutable> */
@@ -229,6 +279,15 @@ class PumkInternalMonitoringService
             }
             if ($loan->saldoAwal?->cutoff_date !== null) {
                 $dates->push($this->localDate($loan->saldoAwal->cutoff_date));
+            }
+            if ($loan->status === PumkPinjaman::STATUS_LUNAS && $loan->lunas_at !== null) {
+                $dates->push($this->completionDate($loan->lunas_at));
+            }
+            foreach ($loan->classificationHistory as $category) {
+                $dates->push($this->localDate($category->effective_from));
+            }
+            foreach ($loan->mitra?->classificationHistory ?? [] as $category) {
+                $dates->push($this->localDate($category->effective_from));
             }
             foreach ($loan->angsuran as $payment) {
                 if ($payment->periode !== null) {
@@ -259,8 +318,22 @@ class PumkInternalMonitoringService
             } elseif ($this->localDate($loan->source_updated_at)->lessThanOrEqualTo($asOf)) {
                 $timestamps->push($loan->updated_at);
             }
+            if ($loan->status === PumkPinjaman::STATUS_LUNAS && $loan->lunas_at !== null
+                && $this->completionDate($loan->lunas_at)->lessThanOrEqualTo($asOf)) {
+                $timestamps->push($loan->lunas_at);
+            }
             if ($loan->mitra?->updated_at?->lessThanOrEqualTo($asOf->endOfDay())) {
                 $timestamps->push($loan->mitra->updated_at);
+            }
+            foreach ($loan->classificationHistory as $category) {
+                if ($this->localDate($category->effective_from)->lessThanOrEqualTo($asOf)) {
+                    $timestamps->push($category->recorded_at);
+                }
+            }
+            foreach ($loan->mitra?->classificationHistory ?? [] as $category) {
+                if ($this->localDate($category->effective_from)->lessThanOrEqualTo($asOf)) {
+                    $timestamps->push($category->recorded_at);
+                }
             }
             if ($loan->saldoAwal?->cutoff_date !== null && $this->localDate($loan->saldoAwal->cutoff_date)->lessThanOrEqualTo($asOf)) {
                 $timestamps->push($loan->saldoAwal->updated_at);
@@ -297,11 +370,12 @@ class PumkInternalMonitoringService
                 return null;
             }
             $positions = $this->positionsAt($loans, $date, $reports);
-            if ($positions['rows'] === []) {
+            if ($positions['rows'] === [] && $positions['closed'] === 0) {
                 return null;
             }
 
-            return collect($positions['rows'])->groupBy('kolektibilitas')
+            return collect($positions['rows'])->filter(fn (array $row): bool => bccomp($row['total'], '0', 2) > 0)
+                ->groupBy('kolektibilitas')
                 ->map(fn (Collection $rows): float => (float) $rows->reduce(
                     fn (string $sum, array $row): string => bcadd($sum, $row['total'], 2), '0.00',
                 ))->all();
@@ -312,7 +386,7 @@ class PumkInternalMonitoringService
             'labels' => $months->map(fn (int $month): string => self::MONTHS[$month].' '.$year)->all(),
             'datasets' => $categories->map(fn (string $category): array => [
                 'label' => $category,
-                'data' => $points->map(fn (?array $point): ?float => $point[$category] ?? null)->all(),
+                'data' => $points->map(fn (?array $point): ?float => $point === null ? null : ($point[$category] ?? 0.0))->all(),
             ])->all(),
         ];
     }
@@ -322,7 +396,8 @@ class PumkInternalMonitoringService
     {
         return [
             'year' => $year, 'years' => $years, 'status' => 'unavailable', 'carried_from_previous_year' => false, 'as_of_date' => null,
-            'updated_at' => null, 'known_loans' => 0, 'unknown_loans' => 0, 'negative_loans' => 0,
+            'updated_at' => null, 'known_loans' => 0, 'closed_loans' => 0, 'positive_loans' => 0,
+            'unknown_loans' => 0, 'negative_loans' => 0, 'negative_total' => 0.0, 'net_known_balance' => null,
             'payment_count' => 0, 'activity_pokok' => '0.00', 'activity_bunga' => '0.00',
             'saldo_pokok' => null, 'saldo_bunga' => null, 'total_saldo_piutang' => null,
             'total_binaan' => null, 'sektor' => collect(), 'kolektibilitas' => collect(),
@@ -331,7 +406,7 @@ class PumkInternalMonitoringService
         ];
     }
 
-    private function provinceForRegion(string $region): string
+    private function provinceForRegion(string $region): ?string
     {
         $name = str($region)->lower()->ascii()->replaceMatches('/^(kab(?:upaten)?|kota)\.?\s+/i', '')->trim()->toString();
         if (in_array($name, ['boyolali', 'karanganyar', 'klaten', 'sragen', 'sukoharjo', 'wonogiri'], true)) {
@@ -341,12 +416,17 @@ class PumkInternalMonitoringService
             return 'Jawa Timur';
         }
 
-        return $region;
+        return null;
     }
 
     private function localDate(CarbonInterface $date): CarbonImmutable
     {
         return CarbonImmutable::parse($date->toDateString(), 'Asia/Jakarta')->startOfDay();
+    }
+
+    private function completionDate(CarbonInterface $timestamp): CarbonImmutable
+    {
+        return CarbonImmutable::instance($timestamp)->setTimezone('Asia/Jakarta')->startOfDay();
     }
 
     private function loanStartDate(PumkPinjaman $loan): ?CarbonImmutable

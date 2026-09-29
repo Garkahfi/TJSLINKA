@@ -16,6 +16,7 @@ use App\Http\Controllers\PumkAdminAuthController;
 use App\Http\Controllers\PumkAdminDashboardController;
 use App\Http\Controllers\PumkBriPlanningController;
 use App\Http\Controllers\PumkMitraController;
+use App\Http\Controllers\PumkMonitoringDiagnosticsController;
 use App\Http\Controllers\SuperAdminAuthController;
 use App\Http\Controllers\SuperAdminBantuanCsrController;
 use App\Http\Controllers\SuperAdminDashboardController;
@@ -112,6 +113,7 @@ Route::prefix('admin-pumk')->name('pumk-admin.')->group(function () {
         Route::post('/logout', [PublicAuthController::class, 'logout'])->name('logout');
         Route::redirect('/', '/admin-pumk/home')->name('dashboard');
         Route::get('/home', PumkAdminDashboardController::class)->name('home');
+        Route::get('/monitoring/rincian-data', PumkMonitoringDiagnosticsController::class)->name('monitoring.diagnostics');
         Route::get('/profil', [AdminProfileController::class, 'edit'])->name('profile');
         Route::put('/profil', [AdminProfileController::class, 'update'])->name('profile.update');
         Route::get('/pumk-bri/rka-realisasi', [PumkBriPlanningController::class, 'index'])->name('bri-planning.index');
@@ -165,6 +167,7 @@ Route::prefix('superadmin')->name('superadmin.')->group(function () {
         Route::redirect('/', '/superadmin/home')->name('dashboard');
         Route::get('/home', SuperAdminDashboardController::class)->name('home');
         Route::get('/pumk', [SuperAdminPumkMonitoringController::class, 'index'])->name('pumk.index');
+        Route::get('/pumk/rincian-data', PumkMonitoringDiagnosticsController::class)->name('pumk.diagnostics');
         Route::get('/pumk/mitra', [SuperAdminPumkMonitoringController::class, 'mitra'])->name('pumk.mitra');
         Route::get('/pumk/mitra/{mitra}', [SuperAdminPumkMonitoringController::class, 'kartu'])->name('pumk.kartu');
         Route::get('/pumk/mitra/{mitra}/pinjaman/{pinjaman}/kartu-piutang.xls', [PumkMitraController::class, 'exportExcel'])->name('pumk.kartu.excel');

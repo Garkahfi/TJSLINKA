@@ -71,4 +71,9 @@ class PumkMitra extends Model
     {
         return $this->pinjaman()->where('status', PumkPinjaman::STATUS_AKTIF)->where('is_active', true);
     }
+
+    public function classificationHistory(): HasMany
+    {
+        return $this->hasMany(PumkClassificationHistory::class, 'mitra_id');
+    }
 }

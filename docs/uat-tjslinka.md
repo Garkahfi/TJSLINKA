@@ -297,3 +297,41 @@ Sebagian preflight I sudah dijaga oleh `UatFoundationTest`: isolasi database tes
 | Tim IT |  | Setuju / Tidak |  |  |
 
 Versi yang ditandatangani harus menyebut commit Git, URL UAT, tanggal backup, hasil tes otomatis, daftar defect tersisa, dan keputusan go/no-go.
+
+## 7. Tambahan UAT pelunasan dan monitoring PUMK internal (28 September 2026)
+
+Ini khusus Kartu Piutang PUMK internal, bukan PUMK BRI. Alur data: kartu menghitung saldo sumber dan angsuran → Admin PUMK menandai lunas → metadata saldo asli, alasan, catatan, petugas, dan waktu penutupan tersimpan → pinjaman keluar dari piutang aktif sejak tanggal lokal penutupan → capture/snapshot periode terdampak perlu direkonsiliasi → grafik memakai nominal piutang aktif positif. Penutupan tidak menghapus saldo asli, menambah angsuran palsu, atau mencatat refund.
+
+Toleransi runtime `PUMK_SETTLEMENT_TOLERANCE` default `0.00`. Rp10.000 pada fixture/UAT adalah **usulan pengujian, belum ketetapan resmi perusahaan**. Nilai toleransi yang berlaku saat tindakan tersimpan pada pinjaman, sehingga perubahan konfigurasi berikutnya tidak mengubah arti penutupan lama. Sebelum UAT pada database disposable/staging, Tim IT memastikan backup, target koneksi DB, dua migration `2026_09_28_000001` dan `2026_09_28_000002`, serta environment `PUMK_SETTLEMENT_TOLERANCE=10000.00`. Jangan menjalankan `migrate:fresh` atau `--reconcile` pada DB pengguna.
+
+Definisi dashboard: KPI dan distribusi sektor/kualitas/provinsi adalah subtotal nominal pinjaman **terbuka, saldonya diketahui, dan totalnya positif** pada cutoff. Kelebihan bayar terbuka ditampilkan terpisah dengan tanda negatif. Total binaan adalah mitra unik pada piutang aktif positif, bukan semua mitra terdaftar. Bila ada saldo tidak diketahui, angka KPI merupakan subtotal. Kategori memakai riwayat per atribut bila ada, lalu snapshot sah, lalu nilai terkini yang dapat dibuktikan berlaku pada cutoff; data lama tanpa bukti historis tetap ditandai belum terverifikasi. Revisi snapshot menimpa detail sebelumnya; nomor revisi bukan arsip semua versi. Tahun PUMK INKA hanya 2025 sampai tahun berjalan Asia/Jakarta, tanpa mengubah rentang PUMK BRI.
+
+Untuk setiap baris UAT berikut, isi commit, URL/environment, toleransi aktif, waktu, penguji, expected/actual, status PASS/FAIL/BLOCKED, bukti aman, dan nomor temuan. Status awal seluruh baris **BELUM DIUJI**.
+
+| ID | Langkah pada fixture sintetis | Hasil yang diharapkan |
+|---|---|---|
+| U-P01 | Saldo pokok dan bunga 0; tandai lunas | Alasan normal; arsip dan histori/unduhan tetap ada. |
+| U-P02 | Saldo +1.000 dan +10.000; isi alasan; tandai lunas | Toleransi inklusif, selisih asli, catatan, petugas, waktu, batas toleransi tersimpan. |
+| U-P03 | Coba +10.000,01 atau catatan kosong | Ditolak tanpa perubahan status/audit. |
+| U-P04 | Saldo -5.000; isi alasan dan konfirmasi pemeriksaan | Kelebihan bayar ditutup; tidak ada refund atau pembayaran fiktif. |
+| U-P05 | Pokok +100.000 dan bunga -100.000 | Ditolak sebagai saldo komponen campuran, meskipun total nol. |
+| U-P06 | Buka dashboard sebelum dan sesudah tanggal penutupan | Pinjaman hanya keluar sejak tanggal efektif; grafik dan total konsisten. |
+| U-P07 | Periksa saldo negatif terbuka dan saldo tidak diketahui | Negatif terpisah dari pie/KPI; unknown tetap null dan punya reason di rincian berizin. |
+| U-P08 | Ubah catatan tanpa mengubah sektor/wilayah; periksa tahun historis | Kategori dengan bukti tidak hilang karena `updated_at` kolom lain. |
+| U-P09 | Cek nilai tooltip serta jumlah sektor, kualitas, provinsi | Semua nominal rupiah dan jumlah masing-masing sama dengan subtotal KPI positif. |
+| U-P10 | Pilih 2025/2026, coba 2024/tahun depan | Opsi dan validasi server benar; kosong tidak dipalsukan nol; carryover berlabel. |
+| U-P11 | Dua admin menutup/menambah angsuran pada pinjaman sama | Tidak ada penutupan ganda atau pembayaran setelah lunas; memerlukan DB MySQL testing terpisah. |
+| U-P12 | Buka rincian sebagai Admin PUMK, Super Admin, role lain | Dua role berhak dapat rincian dan kartu sesuai izin; role lain hanya agregat, tanpa nomor identitas. |
+| U-P13 | Ulangi dashboard BRI/TJSL dan upload terkait | Fitur di luar PUMK internal tetap bekerja. |
+
+Setelah migration di staging, verifikasi jumlah pinjaman, angsuran, dokumen, dan log sebelum/sesudah tetap sama; kolom pelunasan baru pada record lama tetap `NULL`. Scheduler rutin hanya menangkap akhir bulan sebelumnya. Reconcile `pumk:monitoring-capture --reconcile` hanya dilakukan secara eksplisit pada staging setelah hasil diagnosis dan periode terdampak ditinjau; perintah itu dapat merevisi detail snapshot lama, bukan mengarsip semua versinya. Rollback schema yang menghapus kolom metadata tidak aman setelah ada penutupan baru; utamakan perbaikan maju dan pemulihan dari backup teruji. Uji concurrency MySQL serta UAT manusia tidak dapat digantikan oleh tes SQLite in-memory.
+
+### Catatan aktivasi lokal, 29 September 2026
+
+- Koneksi efektif saat aktivasi: `APP_ENV=local`, MySQL `127.0.0.1:3306`, database `tjslinka`; konfigurasi tidak di-cache. Password tidak dicatat.
+- Backup sebelum perubahan: `storage/backups/before-pumk-settlement-20260929-073650.sql`, 1.967.913 byte, SHA-256 `4046037821dc9b1e4ec9848fc9b320d13b242734e161f327f9783eaf4376119f`; dump selesai normal. Simpan secara terbatas karena berisi data asli.
+- Dua migration `2026_09_28_000001_add_pumk_settlement_metadata` dan `2026_09_28_000002_create_pumk_classification_history` selesai (batch 40 dan 41). Migrasi kedua sempat gagal akibat nama indeks otomatis melampaui batas MySQL, kemudian dilanjutkan dengan nama pendek pada tabel baru yang terverifikasi kosong, tanpa menghapus data lama.
+- Sebelum/sesudah: 395 pinjaman, 395 mitra, 95 angsuran; lima kolom nullable dan tabel kategori tersedia. Metadata pelunasan lama tetap null. Toleransi efektif lokal `10000.00` melalui `.env`, hanya untuk pengembangan/UAT, bukan kebijakan perusahaan.
+- Tes terarah pada SQLite `:memory:` terpisah: 61 lulus, 469 assertion. Render dashboard PUMK INKA memakai DB lokal berhasil, dengan 394 pinjaman diketahui, 11 saldo negatif terbuka, dan jumlah nominal sektor/kualitas/provinsi sama dengan KPI piutang positif pada posisi yang diuji. Halaman login lokal merespons HTTP 200; halaman monitoring tanpa login mengarahkan ke login (302).
+- Rangkaian tes lengkap pertama menemukan periode angsuran Februari dapat bergeser ke Maret jika proses berjalan pada tanggal 29–31. Parser bulan pada simpan/edit angsuran dibetulkan agar selalu mulai tanggal 1; tes regresi dibekukan pada 31 Januari dan lulus. Rangkaian lengkap setelah perbaikan: 245 tes lulus, 2.626 assertion.
+- UAT manusia U-P01–U-P13 tetap **BELUM DIUJI**. Uji konkurensi MySQL **BLOCKED** karena belum ada database testing MySQL khusus; jangan menggunakan database `tjslinka` untuk skenario penutupan sintetis.

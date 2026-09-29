@@ -856,13 +856,6 @@
         data-pumk-live="{{ collect($pumkLiveDashboard)->except('updated_at')->toJson() }}"
         @endif
     ></template>
-    <x-hero-video
-        video="videos/waterfall-bg.mp4"
-        variant="simple"
-        :logo="true"
-        description="Lensa TJSL merupakan wujud nyata integrasi dan transparansi informasi atas kontribusi Program Tanggung Jawab Sosial dan Lingkungan (TJSL) dalam pelaksanaan program berkelanjutan dan mitigasi risiko PT Industri Kereta Api (Persero)."
-    />
-
     <nav class="monitoring-dashboard-nav" aria-label="Pilih dashboard monitoring">
         <a href="{{ route('monitoring.tjsl') }}" @if($dashboardType === 'tjsl') aria-current="page" @endif>Realisasi TJSL</a>
         <a href="{{ route('monitoring.bri') }}" @if($dashboardType === 'bri') aria-current="page" @endif>PUMK BRI</a>
@@ -1307,19 +1300,30 @@
                     <p class="monitoring-data-note">Sebagian sektor, wilayah, atau kolektibilitas historis belum terverifikasi dan dikelompokkan sebagai belum terverifikasi/belum dinilai.</p>
                 @endif
                 @if($pumkLiveDashboard['snapshot_stale'])
-                    <p class="monitoring-data-note">Snapshot periode ini perlu direkonsiliasi setelah perubahan angsuran. Angka saldo dibaca ulang dari sumber, tetapi revisi snapshot belum dicatat.</p>
+                    <p class="monitoring-data-note">Snapshot periode ini perlu direkonsiliasi setelah perubahan sumber atau penutupan pinjaman. Angka saldo dibaca ulang dari sumber, tetapi revisi snapshot belum dicatat.</p>
                 @endif
                 @if($pumkLiveDashboard['negative_loans'] > 0)
-                    <p class="monitoring-data-note">Terdapat {{ $pumkLiveDashboard['negative_loans'] }} saldo pinjaman negatif yang perlu ditinjau. Nilainya tidak diubah menjadi positif; irisan grafik mungkin tidak mewakili anomali ini.</p>
+                    <p class="monitoring-data-note">{{ $pumkLiveDashboard['negative_loans'] }} saldo negatif terbuka ({{ $formatRupiah($pumkLiveDashboard['negative_total']) }}) ditampilkan terpisah untuk pemeriksaan kelebihan bayar. Nilainya tidak mengurangi piutang aktif positif dan tidak dimasukkan sebagai irisan grafik.</p>
                 @elseif($pumkLiveDashboard['total_saldo_piutang'] === 0.0)
-                    <p class="monitoring-data-note">Saldo piutang pada posisi ini sah bernilai nol; tidak ada saldo untuk didistribusikan pada grafik.</p>
+                    <p class="monitoring-data-note">
+                        @if($pumkLiveDashboard['closed_loans'] > 0 && $pumkLiveDashboard['known_loans'] === 0 && $pumkLiveDashboard['unknown_loans'] === 0)
+                            Semua pinjaman yang tercakup pada posisi ini telah ditutup; piutang aktif sah bernilai nol.
+                        @else
+                            Saldo piutang pada posisi ini sah bernilai nol; tidak ada saldo untuk didistribusikan pada grafik.
+                        @endif
+                    </p>
+                @endif
+                @if(\Illuminate\Support\Facades\Auth::guard('pumk')->check() || \Illuminate\Support\Facades\Auth::guard('superadmin')->check())
+                    <p class="monitoring-data-note">
+                        <a class="font-semibold underline" href="{{ \Illuminate\Support\Facades\Auth::guard('superadmin')->check() ? route('superadmin.pumk.diagnostics', ['year' => $pumkLiveDashboard['year']]) : route('pumk-admin.monitoring.diagnostics', ['year' => $pumkLiveDashboard['year']]) }}">Lihat rincian data yang perlu diperiksa</a>
+                    </p>
                 @endif
 
                 <div class="pumk-live-summary">
-                    <article class="pumk-total-card"><span>Saldo Piutang Pinjaman (Pokok)</span><strong>{{ $formatRupiah($pumkLiveDashboard['saldo_pokok']) }}</strong></article>
-                    <article class="pumk-total-card"><span>Saldo Piutang Pinjaman (Bunga)</span><strong>{{ $formatRupiah($pumkLiveDashboard['saldo_bunga']) }}</strong></article>
-                    <article class="pumk-total-card"><span>Total Saldo Piutang Pinjaman</span><strong>{{ $formatRupiah($pumkLiveDashboard['total_saldo_piutang']) }}</strong></article>
-                    <article class="pumk-total-card"><span>Total Binaan</span><strong>{{ $pumkLiveDashboard['total_binaan'] === null ? 'Belum tersedia' : number_format($pumkLiveDashboard['total_binaan'], 0, ',', '.') }}</strong></article>
+                    <article class="pumk-total-card"><span>Saldo Piutang Aktif (Pokok)</span><strong>{{ $formatRupiah($pumkLiveDashboard['saldo_pokok']) }}</strong></article>
+                    <article class="pumk-total-card"><span>Saldo Piutang Aktif (Bunga)</span><strong>{{ $formatRupiah($pumkLiveDashboard['saldo_bunga']) }}</strong></article>
+                    <article class="pumk-total-card"><span>Total Piutang Aktif Positif{{ $pumkLiveDashboard['status'] === 'partial' ? ' (Subtotal)' : '' }}</span><strong>{{ $formatRupiah($pumkLiveDashboard['total_saldo_piutang']) }}</strong></article>
+                    <article class="pumk-total-card"><span>Total Binaan dengan Piutang Aktif</span><strong>{{ $pumkLiveDashboard['total_binaan'] === null ? 'Belum tersedia' : number_format($pumkLiveDashboard['total_binaan'], 0, ',', '.') }}</strong></article>
                 </div>
 
                 <div class="pumk-primary-grid" style="grid-template-columns:1fr 1fr">

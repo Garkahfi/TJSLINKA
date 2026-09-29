@@ -14,7 +14,9 @@ Schedule::command('pumk:snapshot-bulanan')
     ->withoutOverlapping(120);
 
 // Pada tanggal 1, catat posisi akhir bulan sebelumnya; jangan memberi key bulan baru.
-Schedule::command('pumk:monitoring-capture --reconcile')
+// Rekonsiliasi periode lama tetap tindakan eksplisit setelah diagnosis;
+// jadwal rutin hanya menangkap posisi akhir bulan yang baru.
+Schedule::command('pumk:monitoring-capture')
     ->monthlyOn(1, '01:15')
     ->timezone('Asia/Jakarta')
     ->withoutOverlapping(120);
