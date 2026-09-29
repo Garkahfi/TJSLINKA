@@ -155,6 +155,18 @@ class PumkPinjaman extends Model
             && $this->lunas_at->timezone('Asia/Jakarta')->toDateString() <= $date;
     }
 
+    public function isUnfundedVoid(): bool
+    {
+        $this->loadMissing(['saldoAwal', 'angsuran']);
+
+        return $this->status === self::STATUS_NONAKTIF && ! $this->is_active
+            && $this->no_urut_sumber === null && $this->created_by !== null
+            && $this->pinjaman_pokok === null && $this->pinjaman_bunga === null
+            && $this->tanggal_pencairan === null && $this->source_updated_at === null
+            && blank($this->baseline_sumber) && $this->saldoAwal === null
+            && $this->angsuran->isEmpty();
+    }
+
     public function saldoAwal(): HasOne
     {
         return $this->hasOne(PumkSaldoAwal::class, 'pinjaman_id');

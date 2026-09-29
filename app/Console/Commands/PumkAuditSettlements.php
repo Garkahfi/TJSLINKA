@@ -28,6 +28,20 @@ class PumkAuditSettlements extends Command
             ->when($id !== null, fn ($query) => $query->where('mitra_id', (int) $id))->get();
         $rows = [];
         foreach ($loans as $loan) {
+            if ($loan->isUnfundedVoid()) {
+                $listedInMonitoring = in_array($loan->id, $positions['closed_ids'], true)
+                    || collect($positions['rows'])->contains(fn ($row) => $row['pinjaman_id'] === $loan->id)
+                    || collect($positions['unknown_details'])->contains(fn ($row) => $row['pinjaman_id'] === $loan->id);
+                $rows[] = [
+                    'mitra_id' => $loan->mitra_id, 'pinjaman_id' => $loan->id, 'status' => $loan->status,
+                    'saldo_sumber' => null, 'saldo_saat_lunas' => null, 'alasan_lunas' => null,
+                    'monitoring_closed' => false, 'eligible_now' => false,
+                    'excluded_reason' => 'unfunded_void',
+                    'issues' => $listedInMonitoring ? ['status_monitoring_mismatch'] : [],
+                ];
+
+                continue;
+            }
             $preview = $settlements->preview($loan, $today);
             $issues = [];
             $closed = in_array($loan->id, $positions['closed_ids'], true);

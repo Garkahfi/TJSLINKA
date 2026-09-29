@@ -203,6 +203,26 @@ class PumkArchiveWorkflowTest extends TestCase
         $this->assertSame(1, $mitra->pinjaman()->count());
     }
 
+    public function test_void_unfunded_facility_is_kept_for_audit_but_excluded_from_monitoring(): void
+    {
+        [$user, $mitra, $funded] = $this->fixture(75000);
+        $empty = $mitra->pinjaman()->create([
+            'source_key' => hash('sha256', 'unfunded-void-fixture'),
+            'pinjaman_pokok' => null, 'pinjaman_bunga' => null,
+            'created_by' => $user->id, 'status' => 'aktif', 'is_active' => true,
+        ]);
+        $service = app(PumkInternalMonitoringService::class);
+        $before = $service->positionForCapture(CarbonImmutable::now('Asia/Jakarta'));
+        $this->assertSame(1, $before['unknown']);
+
+        $empty->update(['status' => 'nonaktif', 'is_active' => false]);
+        $after = $service->positionForCapture(CarbonImmutable::now('Asia/Jakarta'));
+        $this->assertSame(0, $after['unknown']);
+        $this->assertSame([$funded->id], array_column($after['rows'], 'pinjaman_id'));
+        $this->assertDatabaseHas('pumk_pinjaman', ['id' => $empty->id, 'status' => 'nonaktif']);
+        $this->artisan('pumk:audit-settlements', ['--mitra' => $mitra->id, '--json' => true])->assertSuccessful();
+    }
+
     private function fixture(float $principal): array
     {
         $user = User::factory()->create(['role' => 'pumk_admin', 'is_admin' => true, 'is_active' => true, 'must_change_password' => false]);

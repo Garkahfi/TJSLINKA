@@ -204,6 +204,9 @@ class PumkInternalMonitoringService
         $unknownDetails = [];
 
         foreach ($loans as $loan) {
+            if ($loan->isUnfundedVoid()) {
+                continue;
+            }
             $start = $this->loanStartDate($loan);
             if ($start === null || $start->greaterThan($asOf)) {
                 continue;
@@ -269,6 +272,9 @@ class PumkInternalMonitoringService
     {
         $dates = collect();
         foreach ($loans as $loan) {
+            if ($loan->isUnfundedVoid()) {
+                continue;
+            }
             $origin = $loan->tanggal_pencairan ?? ($loan->source_updated_at === null ? $loan->created_at : null);
             if ($origin !== null) {
                 $dates->push($this->localDate($origin));
@@ -314,6 +320,9 @@ class PumkInternalMonitoringService
     {
         $timestamps = collect();
         foreach ($loans as $loan) {
+            if ($loan->isUnfundedVoid()) {
+                continue;
+            }
             $start = $this->loanStartDate($loan);
             if ($start === null || $start->greaterThan($asOf)) {
                 continue;
