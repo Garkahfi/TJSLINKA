@@ -65,6 +65,29 @@ class PumkArchiveWorkflowTest extends TestCase
         $this->assertSame('aktif', $above->fresh()->status);
     }
 
+    public function test_imported_overpayment_reopens_with_its_original_baseline(): void
+    {
+        [$user, $mitra, $loan] = $this->fixture(1000000);
+        $baseline = [
+            'sisa_pokok' => '-2143279.00', 'sisa_bunga' => '0.00',
+            'total_pokok_masuk' => '0.00', 'total_bunga_masuk' => '0.00', 'total_denda_masuk' => '0.00',
+            'bulan_tunggakan' => 0, 'nilai_tunggakan' => '0.00', 'kolektibilitas' => 'lancar',
+        ];
+        $loan->update(['source_updated_at' => '2026-09-01 00:00:00', 'baseline_sumber' => $baseline]);
+        app(PiutangCalculator::class)->sinkronkanCache($loan);
+        $this->actingAs($user, 'pumk')->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
+            'lunas_note' => 'Baseline kelebihan bayar telah diperiksa.', 'konfirmasi_kelebihan_bayar' => 1,
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('lunas', $loan->fresh()->status);
+        $this->post(route('pumk-admin.mitra.pinjaman.reopen', [$mitra, $loan]), ['reopen_note' => 'Periksa kembali dokumen sumber.'])
+            ->assertSessionHasNoErrors();
+        $this->assertEquals($baseline, $loan->fresh()->baseline_sumber);
+        $this->assertSame('-2143279.00', $loan->fresh()->total_sisa);
+        $this->assertSame('-2143279.00', app(PiutangCalculator::class)->hitungUntukPinjaman($loan->fresh())['total_sisa']);
+        $this->assertSame(1, $mitra->pinjaman()->count());
+        $this->assertDatabaseCount('pumk_angsuran', 0);
+    }
+
     public function test_archived_spj_upload_keeps_same_loan_balance_status_and_payments(): void
     {
         Storage::fake('local');
@@ -151,7 +174,7 @@ class PumkArchiveWorkflowTest extends TestCase
         app(PiutangCalculator::class)->sinkronkanCache($loan);
         app(\App\Services\Monitoring\PumkClassificationService::class)->record(null, $loan, 'kolektibilitas', 'diragukan', CarbonImmutable::parse('2026-09-01', 'Asia/Jakarta'), 'estimate', 'test-old');
         $this->actingAs($user, 'pumk')->post(route('pumk-admin.mitra.angsuran.store', [$mitra, $loan]), [
-            'periode' => '2026-09', 'pokok' => 900000, 'bunga' => 0,
+            'periode' => '2026-09', 'pokok' => 900000, 'bunga' => 0, 'denda' => 0,
         ])->assertSessionHasNoErrors();
         $this->assertSame('lancar', $loan->fresh()->kolektibilitas);
         $this->assertSame('lancar', app(PumkInternalMonitoringService::class)->report(2026)['kolektibilitas']->first()['label']);

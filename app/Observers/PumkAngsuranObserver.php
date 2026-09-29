@@ -58,7 +58,8 @@ class PumkAngsuranObserver
         if ($loan = PumkPinjaman::find($id)) {
             $before = $loan->kolektibilitas;
             app(PiutangCalculator::class)->sinkronkanCache($loan);
-            if ($before !== $loan->kolektibilitas) {
+            // Initial cache population is not a new business classification event.
+            if ($before !== null && $before !== $loan->kolektibilitas) {
                 app(PumkClassificationService::class)->record(null, $loan, 'kolektibilitas', $loan->kolektibilitas,
                     CarbonImmutable::now('Asia/Jakarta'), 'estimate', (string) Str::uuid(), auth('pumk')->id());
             }
