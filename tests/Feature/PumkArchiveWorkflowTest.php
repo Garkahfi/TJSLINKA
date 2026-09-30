@@ -6,6 +6,7 @@ use App\Models\PumkAngsuran;
 use App\Models\PumkMitra;
 use App\Models\PumkPinjaman;
 use App\Models\User;
+use App\Services\Monitoring\PumkClassificationService;
 use App\Services\Monitoring\PumkInternalMonitoringService;
 use App\Services\Monitoring\PumkMonitoringCaptureService;
 use App\Services\Pumk\PiutangCalculator;
@@ -14,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PumkArchiveWorkflowTest extends TestCase
@@ -39,9 +41,8 @@ class PumkArchiveWorkflowTest extends TestCase
         PumkAngsuran::create(['pinjaman_id' => $loan->id, 'periode' => '2026-09-01', 'pokok' => 2243279, 'bunga' => 0, 'created_by' => $user->id]);
         $url = route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]);
         $this->actingAs($user, 'pumk')->get(route('pumk-admin.mitra.show', [$mitra, 'pinjaman' => $loan->id]))
-            ->assertOk()->assertSee('Pinjaman ini dapat ditandai lunas.')->assertSee('konfirmasi_kelebihan_bayar');
-        $this->post($url, ['lunas_note' => 'Kelebihan bayar sudah diperiksa.'])->assertSessionHasErrors('konfirmasi_kelebihan_bayar');
-        $this->post($url, ['lunas_note' => 'Kelebihan bayar sudah diperiksa.', 'konfirmasi_kelebihan_bayar' => 1])->assertSessionHasNoErrors();
+            ->assertOk()->assertSee('Pinjaman ini dapat ditandai lunas.')->assertDontSee('konfirmasi_kelebihan_bayar');
+        $this->post($url, ['lunas_note' => 'Kelebihan bayar sudah diperiksa.'])->assertSessionHasNoErrors();
         $this->assertSame('-2143279.00', $loan->fresh()->lunas_total_saldo);
         $this->assertSame('kelebihan_bayar', $loan->fresh()->lunas_reason);
         $this->assertSame(1, $loan->closures()->count());
@@ -76,7 +77,7 @@ class PumkArchiveWorkflowTest extends TestCase
         $loan->update(['source_updated_at' => '2026-09-01 00:00:00', 'baseline_sumber' => $baseline]);
         app(PiutangCalculator::class)->sinkronkanCache($loan);
         $this->actingAs($user, 'pumk')->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
-            'lunas_note' => 'Baseline kelebihan bayar telah diperiksa.', 'konfirmasi_kelebihan_bayar' => 1,
+            'lunas_note' => 'Baseline kelebihan bayar telah diperiksa.',
         ])->assertSessionHasNoErrors();
         $this->assertSame('lunas', $loan->fresh()->status);
         $this->post(route('pumk-admin.mitra.pinjaman.reopen', [$mitra, $loan]), ['reopen_note' => 'Periksa kembali dokumen sumber.'])
@@ -153,7 +154,10 @@ class PumkArchiveWorkflowTest extends TestCase
             ->assertSessionHasNoErrors();
         $this->assertSame(1, $mitra->pinjaman()->count());
         $this->put(route('pumk-admin.mitra.update', $mitra), ['nama_mitra' => $mitra->nama_mitra, 'new_loan' => 1])
-            ->assertSessionHasErrors(['pinjaman_pokok', 'pinjaman_bunga', 'tanggal_pencairan']);
+            ->assertSessionHasErrors('new_loan');
+        $this->get(route('pumk-admin.mitra.edit', [$mitra, 'new_loan' => 1]))->assertSessionHasErrors('new_loan');
+        $this->get(route('pumk-admin.mitra.show', $mitra))->assertOk()->assertDontSee('Buat Pinjaman Baru');
+        $this->assertSame('lunas', $loan->fresh()->status);
         $this->assertSame(1, $mitra->pinjaman()->count());
     }
 
@@ -172,7 +176,7 @@ class PumkArchiveWorkflowTest extends TestCase
         [$user, $mitra, $loan] = $this->fixture(1200000);
         $loan->update(['mulai_angsuran' => '2026-01-01', 'selesai_angsuran' => '2026-12-01', 'nilai_angsuran_bulanan' => 100000]);
         app(PiutangCalculator::class)->sinkronkanCache($loan);
-        app(\App\Services\Monitoring\PumkClassificationService::class)->record(null, $loan, 'kolektibilitas', 'diragukan', CarbonImmutable::parse('2026-09-01', 'Asia/Jakarta'), 'estimate', 'test-old');
+        app(PumkClassificationService::class)->record(null, $loan, 'kolektibilitas', 'diragukan', CarbonImmutable::parse('2026-09-01', 'Asia/Jakarta'), 'estimate', 'test-old');
         $this->actingAs($user, 'pumk')->post(route('pumk-admin.mitra.angsuran.store', [$mitra, $loan]), [
             'periode' => '2026-09', 'pokok' => 900000, 'bunga' => 0, 'denda' => 0,
         ])->assertSessionHasNoErrors();
@@ -221,6 +225,94 @@ class PumkArchiveWorkflowTest extends TestCase
         $this->assertSame([$funded->id], array_column($after['rows'], 'pinjaman_id'));
         $this->assertDatabaseHas('pumk_pinjaman', ['id' => $empty->id, 'status' => 'nonaktif']);
         $this->artisan('pumk:audit-settlements', ['--mitra' => $mitra->id, '--json' => true])->assertSuccessful();
+    }
+
+    /** Nominal dari contoh pengguna; komponen selain Arsya adalah fixture sintetis. */
+    public static function signedCardBalances(): array
+    {
+        return [
+            'Ternak Ayam Joper Nur' => [1000, -2950, '-1950.00', 'kelebihan_bayar'],
+            'Gita Batu Alam' => [1000, -1006, '-6.00', 'kelebihan_bayar'],
+            'Batu Ariyan' => [1000, -26897, '-25897.00', 'kelebihan_bayar'],
+            'UD Jati Uni' => [1000, -2150, '-1150.00', 'kelebihan_bayar'],
+            'Arsya Lele screenshot' => [2185, -23521, '-21336.00', 'kelebihan_bayar'],
+            'Kurnia Bhakti' => [1000, -898949, '-897949.00', 'kelebihan_bayar'],
+            'Meubel Wahyu Lestari' => [1000, -194232, '-193232.00', 'kelebihan_bayar'],
+            'Surya Bhakti Furniture' => [1000, -1988, '-988.00', 'kelebihan_bayar'],
+            'Abadi Indah' => [1000, -2099392, '-2098392.00', 'kelebihan_bayar'],
+            'Murni Jerangking' => [1000, -2144279, '-2143279.00', 'kelebihan_bayar'],
+            'UKM Panca' => [1000, -3651, '-2651.00', 'kelebihan_bayar'],
+            'negative principal positive interest' => [-200000, 6768, '-193232.00', 'kelebihan_bayar'],
+            'positive net within tolerance' => [120000, -45000, '75000.00', 'toleransi'],
+            'positive net at tolerance' => [120000, -20000, '100000.00', 'toleransi'],
+            'positive net reverse components' => [-20000, 120000, '100000.00', 'toleransi'],
+            'smallest positive' => [1000, -999.99, '0.01', 'toleransi'],
+        ];
+    }
+
+    #[DataProvider('signedCardBalances')]
+    public function test_settlement_uses_card_total_regardless_of_component_signs(float $principal, float $interest, string $total, string $reason): void
+    {
+        [$user, $mitra, $loan] = $this->fixture(1000000);
+        $baseline = [
+            'sisa_pokok' => (string) $principal, 'sisa_bunga' => (string) $interest,
+            'total_pokok_masuk' => '0.00', 'total_bunga_masuk' => '0.00', 'total_denda_masuk' => '0.00',
+            'bulan_tunggakan' => 0, 'nilai_tunggakan' => '0.00', 'kolektibilitas' => 'lancar',
+        ];
+        $loan->update(['source_updated_at' => '2026-09-01 00:00:00', 'baseline_sumber' => $baseline]);
+        app(PiutangCalculator::class)->sinkronkanCache($loan);
+        $url = route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]);
+        $this->actingAs($user, 'pumk')->get(route('pumk-admin.mitra.show', [$mitra, 'pinjaman' => $loan->id]))
+            ->assertOk()->assertSee('Pinjaman ini dapat ditandai lunas.')
+            ->assertDontSee('Pokok dan bunga berlawanan tanda')->assertDontSee('Buat Pinjaman Baru');
+        $this->post($url, ['lunas_note' => '   '])->assertSessionHasErrors('lunas_note');
+        $this->assertSame('aktif', $loan->fresh()->status);
+        $this->post($url, ['lunas_note' => 'Pelunasan berdasarkan total kartu piutang.'])
+            ->assertSessionHasNoErrors();
+        $closed = $loan->fresh();
+        $this->assertSame('lunas', $closed->status);
+        $this->assertSame($reason, $closed->lunas_reason);
+        $this->assertSame($total, $closed->lunas_total_saldo);
+        $this->assertSame($total, app(PiutangCalculator::class)->hitungUntukPinjaman($closed)['total_sisa']);
+        $this->assertEquals($baseline, $closed->baseline_sumber);
+        $this->assertDatabaseCount('pumk_angsuran', 0);
+        $this->assertSame(1, $mitra->pinjaman()->count());
+        $this->assertSame(1, $closed->closures()->count());
+        $report = app(PumkInternalMonitoringService::class)->report(2026);
+        $this->assertSame(1, $report['closed_loans']);
+        $this->assertSame(0, $report['negative_loans']);
+        $this->artisan('pumk:audit-settlements', ['--mitra' => $mitra->id, '--json' => true])->assertSuccessful();
+    }
+
+    public function test_changed_imported_payments_use_current_card_instead_of_historical_resolver(): void
+    {
+        [$user, $mitra, $loan] = $this->fixture(1000000);
+        $loan->update([
+            'source_updated_at' => '2026-09-01 00:00:00',
+            'baseline_sumber' => [
+                'sisa_pokok' => '-293232.00', 'sisa_bunga' => '0.00',
+                'total_pokok_masuk' => '100000.00', 'total_bunga_masuk' => '0.00', 'total_denda_masuk' => '0.00',
+                'bulan_tunggakan' => 0, 'nilai_tunggakan' => '0.00', 'kolektibilitas' => 'lancar',
+            ],
+        ]);
+        // Payment total has changed since import: current card includes that delta.
+        $this->assertSame('-193232.00', app(PiutangCalculator::class)->hitungUntukPinjaman($loan->fresh())['total_sisa']);
+        $this->actingAs($user, 'pumk')->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
+            'lunas_note' => 'Kelebihan bayar sesuai kartu terkini.',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('-193232.00', $loan->fresh()->lunas_total_saldo);
+        $this->assertSame('lunas', $loan->fresh()->status);
+    }
+
+    public function test_mixed_components_above_positive_limit_are_still_rejected(): void
+    {
+        [$user, $mitra, $loan] = $this->fixture(120000.01);
+        PumkAngsuran::create(['pinjaman_id' => $loan->id, 'periode' => '2026-09-01', 'pokok' => 0, 'bunga' => 20000, 'created_by' => $user->id]);
+        $this->actingAs($user, 'pumk')->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
+            'lunas_note' => 'Mencoba melampaui batas.', 'lunas_total_saldo' => '-1.00',
+        ])->assertSessionHasErrors('lunas');
+        $this->assertSame('aktif', $loan->fresh()->status);
+        $this->assertNull($loan->fresh()->lunas_total_saldo);
     }
 
     private function fixture(float $principal): array
