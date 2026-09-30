@@ -43,7 +43,6 @@
                     <a href="{{ route('pumk-admin.mitra.kartu.pdf', [$mitra, $pinjaman, 'tahun' => $kartu['tahun_terpilih']]) }}" class="pumk-secondary-button">Unduh PDF</a>
                 @endif
                 <a href="{{ route('pumk-admin.mitra.edit', [$mitra, 'pinjaman' => $pinjaman?->id]) }}" class="pumk-primary-button">{{ $loanIsActive ? 'Edit Data dan Dokumen' : 'Edit Arsip dan Dokumen' }}</a>
-                <a href="{{ route('pumk-admin.mitra.edit', [$mitra, 'new_loan' => 1]) }}" class="pumk-secondary-button">Buat Pinjaman Baru</a>
                 @if($loanIsActive)
                     <button type="button" class="danger-button" data-open-paid-dialog>Tandai Lunas</button>
                 @endif
@@ -342,17 +341,17 @@
                         <div><h2>Tandai Pinjaman Lunas</h2><p class="pumk-page-subtitle">Tindakan ini mengarsipkan pinjaman tanpa menghapus kartu dan histori angsuran.</p></div>
                         <button type="button" class="installment-dialog-close" data-close-paid-dialog aria-label="Tutup">&times;</button>
                     </div>
-                    @if($errors->hasAny(['lunas', 'lunas_note', 'konfirmasi_kelebihan_bayar']))
-                        <div class="pumk-alert error" role="alert">{{ $errors->first('lunas') ?: ($errors->first('lunas_note') ?: $errors->first('konfirmasi_kelebihan_bayar')) }}</div>
+                    @if($errors->hasAny(['lunas', 'lunas_note']))
+                        <div class="pumk-alert error" role="alert">{{ $errors->first('lunas') ?: $errors->first('lunas_note') }}</div>
                     @endif
-                    <p>Posisi saldo per {{ $settlementPreview['as_of_date'] }}: pokok <strong>{{ $settlementPreview['known'] ? $rupiah($settlementPreview['saldo_pokok']) : 'Belum diketahui' }}</strong>, bunga <strong>{{ $settlementPreview['known'] ? $rupiah($settlementPreview['saldo_bunga']) : 'Belum diketahui' }}</strong>, total <strong>{{ $settlementPreview['known'] ? $rupiah($settlementPreview['total']) : 'Belum diketahui' }}</strong>.</p>
+                    <p>Saldo akhir kartu piutang per {{ $settlementPreview['as_of_date'] }}: pokok <strong>{{ $settlementPreview['known'] ? $rupiah($settlementPreview['saldo_pokok']) : 'Belum diketahui' }}</strong>, bunga <strong>{{ $settlementPreview['known'] ? $rupiah($settlementPreview['saldo_bunga']) : 'Belum diketahui' }}</strong>, total <strong>{{ $settlementPreview['known'] ? $rupiah($settlementPreview['total']) : 'Belum diketahui' }}</strong>.</p>
                     <p>Batas toleransi aktif: {{ $rupiah($settlementPreview['tolerance']) }}. Jenis penyelesaian menurut server: <strong>{{ match($settlementPreview['reason']) {
                         'normal' => 'Normal', 'toleransi' => 'Toleransi selisih',
                         'kelebihan_bayar' => 'Kelebihan bayar', default => 'Belum dapat ditutup',
                     } }}</strong>.</p>
                     @if($settlementPreview['eligible'])
                         <p role="status"><strong>Pinjaman ini dapat ditandai lunas.</strong>
-                        @if($settlementPreview['reason'] === 'kelebihan_bayar') Saldo minus adalah kelebihan bayar; batas toleransi hanya berlaku untuk sisa utang positif. Isi catatan dan centang konfirmasi di bawah.
+                        @if($settlementPreview['reason'] === 'kelebihan_bayar') Saldo minus adalah kelebihan bayar; batas toleransi hanya berlaku untuk sisa utang positif. Isi catatan pelunasan di bawah.
                         @elseif($settlementPreview['needs_note']) Sisa utang ditutup sebagai toleransi selisih. Isi alasan penyelesaiannya.
                         @endif</p>
                     @endif
@@ -361,9 +360,6 @@
                     <form method="POST" action="{{ route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $pinjaman]) }}">
                         @csrf
                         <div class="pumk-field"><label for="lunas_note">Catatan pelunasan {{ $settlementPreview['needs_note'] ? '(wajib)' : '(opsional)' }}</label><textarea id="lunas_note" name="lunas_note" class="pumk-textarea" maxlength="1000" @if($settlementPreview['needs_note']) required @endif>{{ old('lunas_note') }}</textarea></div>
-                        @if($settlementPreview['needs_confirmation'])
-                            <div class="pumk-field"><label><input type="checkbox" name="konfirmasi_kelebihan_bayar" value="1" required @checked(old('konfirmasi_kelebihan_bayar'))> Saya sudah memeriksa kelebihan bayar dan memahami bahwa tindakan ini tidak mencatat pengembalian dana.</label></div>
-                        @endif
                         <div class="installment-dialog-actions"><button type="button" class="pumk-secondary-button" data-close-paid-dialog>Batal</button><button type="submit" class="danger-button" @disabled(! $settlementPreview['eligible'])>Ya, Tandai Lunas</button></div>
                     </form>
                 </div>
@@ -457,7 +453,7 @@
                 document.querySelector('[data-open-paid-dialog]')?.addEventListener('click', () => paidDialog.showModal());
                 document.querySelectorAll('[data-close-paid-dialog]').forEach((button) => button.addEventListener('click', () => paidDialog.close()));
                 paidDialog.addEventListener('click', (event) => { if (event.target === paidDialog) paidDialog.close(); });
-                @if($errors->hasAny(['lunas', 'lunas_note', 'konfirmasi_kelebihan_bayar']))
+                @if($errors->hasAny(['lunas', 'lunas_note']))
                     paidDialog.showModal();
                 @endif
             }

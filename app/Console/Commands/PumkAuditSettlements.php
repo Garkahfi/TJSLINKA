@@ -45,9 +45,9 @@ class PumkAuditSettlements extends Command
                         $issues[] = 'settlement_components_mismatch';
                     } else {
                         $valid = match ($loan->lunas_reason) {
-                            PumkPinjaman::LUNAS_NORMAL => bccomp($p, '0', 2) === 0 && bccomp($b, '0', 2) === 0,
-                            PumkPinjaman::LUNAS_KELEBIHAN_BAYAR => bccomp($p, '0', 2) <= 0 && bccomp($b, '0', 2) <= 0 && bccomp($total, '0', 2) < 0,
-                            PumkPinjaman::LUNAS_TOLERANSI => $loan->lunas_tolerance_applied !== null && bccomp($p, '0', 2) >= 0 && bccomp($b, '0', 2) >= 0 && bccomp($total, '0', 2) > 0 && bccomp($total, $loan->lunas_tolerance_applied, 2) <= 0,
+                            PumkPinjaman::LUNAS_NORMAL => bccomp($total, '0', 2) === 0,
+                            PumkPinjaman::LUNAS_KELEBIHAN_BAYAR => bccomp($total, '0', 2) < 0,
+                            PumkPinjaman::LUNAS_TOLERANSI => $loan->lunas_tolerance_applied !== null && bccomp($total, '0', 2) > 0 && bccomp($total, $loan->lunas_tolerance_applied, 2) <= 0,
                             default => false,
                         };
                         if (! $valid) {
@@ -64,8 +64,6 @@ class PumkAuditSettlements extends Command
             }
             if (! $preview['known']) {
                 $issues[] = $preview['reason_code'];
-            } elseif ($preview['reason_code'] === 'card_balance_mismatch') {
-                $issues[] = 'card_balance_mismatch';
             }
             $rows[] = [
                 'mitra_id' => $loan->mitra_id, 'pinjaman_id' => $loan->id, 'status' => $loan->status,

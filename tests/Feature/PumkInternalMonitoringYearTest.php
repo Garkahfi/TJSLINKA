@@ -392,7 +392,7 @@ class PumkInternalMonitoringYearTest extends TestCase
         config()->set('pumk.settlement_tolerance', '10000.00');
         $loan = $this->loan('2026-01-01', 5_000, 0);
         $user = User::factory()->create(['role' => 'pumk_admin', 'is_active' => true, 'must_change_password' => false]);
-        app(PumkLoanSettlementService::class)->settle($loan->mitra_id, $loan->id, 'Selisih diperiksa.', false, $user->id);
+        app(PumkLoanSettlementService::class)->settle($loan->mitra_id, $loan->id, 'Selisih diperiksa.', $user->id);
 
         $service = app(PumkInternalMonitoringService::class);
         $loans = PumkPinjaman::with(['mitra', 'saldoAwal', 'angsuran'])->get();

@@ -3,7 +3,6 @@
 
     @php
         $editing = $mitra->exists;
-        $newLoan = $newLoan ?? false;
         $archiveEdit = $pinjaman->exists && ($pinjaman->status !== \App\Models\PumkPinjaman::STATUS_AKTIF || ! $pinjaman->is_active);
         $formAction = $editing ? route('pumk-admin.mitra.update', $mitra) : route('pumk-admin.mitra.store');
         $dateValue = static fn ($value) => $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '';
@@ -12,7 +11,7 @@
     <div class="pumk-page">
         <div class="pumk-page-header">
             <div>
-                <h1 class="pumk-page-title">{{ $newLoan ? 'Buat Pinjaman Baru' : ($archiveEdit ? 'Edit Arsip dan Dokumen' : ($editing ? 'Edit Mitra Binaan' : 'Tambah Mitra Binaan')) }}</h1>
+                <h1 class="pumk-page-title">{{ $archiveEdit ? 'Edit Arsip dan Dokumen' : ($editing ? 'Edit Mitra Binaan' : 'Tambah Mitra Binaan') }}</h1>
                 <p class="pumk-page-subtitle">Data tersimpan langsung tanpa alur approval. Kolom bertanda * wajib diisi.</p>
             </div>
         </div>
@@ -30,12 +29,9 @@
             @csrf
             @if($editing) @method('PUT') @endif
             @if($pinjaman->exists)<input type="hidden" name="pinjaman_id" value="{{ $pinjaman->id }}">@endif
-            @if($newLoan)<input type="hidden" name="new_loan" value="1">@endif
             @if($archiveEdit)
                 <div class="pumk-alert success">Status lunas/arsip dan saldo tetap. Anda dapat memperbarui identitas, nomor kontrak, jaminan, dan dokumen SPJ. Koreksi transaksi keuangan memerlukan tindakan Buka Kembali Pinjaman.</div>
                 <div class="pumk-field"><label for="edit_reason">Alasan perubahan arsip *</label><textarea id="edit_reason" name="edit_reason" class="pumk-textarea" required minlength="5" maxlength="1000">{{ old('edit_reason') }}</textarea></div>
-            @elseif($newLoan)
-                <div class="pumk-alert error">Form ini membuat fasilitas baru dengan saldo awal baru. Untuk mengunggah SPJ pinjaman lama, gunakan Edit Arsip dan Dokumen pada kartu lama.</div>
             @endif
 
             <section class="pumk-card pumk-section">
@@ -89,7 +85,7 @@
                         <input id="no_rekening" name="no_rekening" class="pumk-input" value="{{ old('no_rekening', $mitra->no_rekening_encrypted) }}" maxlength="64" inputmode="numeric" autocomplete="off">
                     </div>
                 </div>
-                <p class="pumk-note">Nomor KTP, telepon, dan rekening disimpan dalam bentuk terenkripsi serta tidak ditampilkan pada halaman daftar. Mengedit data atau dokumen tidak mengaktifkan pinjaman arsip. Gunakan tindakan Buka Kembali Pinjaman untuk koreksi fasilitas lama, atau Buat Pinjaman Baru untuk penyaluran baru.</p>
+                <p class="pumk-note">Nomor KTP, telepon, dan rekening disimpan dalam bentuk terenkripsi serta tidak ditampilkan pada halaman daftar. Mengedit data atau dokumen tidak mengaktifkan pinjaman arsip. Gunakan tindakan Buka Kembali Pinjaman untuk koreksi fasilitas lama.</p>
             </section>
 
             <section class="pumk-card pumk-section">
