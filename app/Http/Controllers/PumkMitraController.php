@@ -12,6 +12,7 @@ use App\Services\Monitoring\PumkClassificationService;
 use App\Services\Pumk\KartuPiutangService;
 use App\Services\Pumk\PiutangCalculator;
 use App\Services\Pumk\PumkActivityLogger;
+use App\Services\Pumk\PumkCollectibilitySummaryService;
 use App\Services\Pumk\PumkLoanDocumentService;
 use App\Services\Pumk\PumkLoanSettlementService;
 use App\Services\Pumk\PumkPaymentProofService;
@@ -31,7 +32,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PumkMitraController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, PumkCollectibilitySummaryService $collectibilitySummary): View
     {
         $filters = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
@@ -41,6 +42,7 @@ class PumkMitraController extends Controller
             'status' => ['nullable', Rule::in(['aktif', 'lunas', 'semua'])],
         ]);
         $statusFilter = $filters['status'] ?? 'aktif';
+        $selectedCollectibility = $filters['kolektibilitas'] ?? null;
 
         $mitraQuery = PumkMitra::query()
             ->withExists('pinjamanAktif')
@@ -74,6 +76,10 @@ class PumkMitraController extends Controller
 
         return view('pumk-admin.mitra.index', [
             'mitraList' => $mitraQuery->paginate(15)->withQueryString(),
+            'collectibilitySummary' => $selectedCollectibility !== null
+                ? $collectibilitySummary->summarize($filters, $selectedCollectibility)
+                : null,
+            'selectedCollectibility' => $selectedCollectibility,
             'wilayahList' => PumkWilayah::query()->where('is_active', true)->orderBy('nama')->get(['id', 'nama']),
             'sektorList' => PumkSektorUsaha::query()->where('is_active', true)->orderBy('nama')->get(['id', 'nama']),
             'collectibilityOptions' => $this->collectibilityOptions(),

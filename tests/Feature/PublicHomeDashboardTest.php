@@ -17,6 +17,56 @@ class PublicHomeDashboardTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_monitoring_navigation_uses_the_existing_dashboard_routes_without_the_old_selector(): void
+    {
+        $user = User::factory()->create(['role' => 'admin', 'is_active' => true, 'must_change_password' => false]);
+        $destinations = [
+            'home' => 'monitoring.tjsl',
+            'monitoring.tjsl' => 'monitoring.tjsl',
+            'monitoring.bri' => 'monitoring.bri',
+            'monitoring.inka' => 'monitoring.inka',
+            'teras' => null,
+        ];
+        $links = [
+            'monitoring.tjsl' => 'Realisasi TJSL',
+            'monitoring.bri' => 'PUMK BRI',
+            'monitoring.inka' => 'PUMK PT INKA',
+        ];
+
+        foreach ($destinations as $pageRoute => $activeRoute) {
+            $response = $this->actingAs($user, 'web')->get(route($pageRoute));
+            $response->assertOk()->assertDontSee('monitoring-dashboard-nav');
+
+            $document = new \DOMDocument;
+            @$document->loadHTML($response->getContent());
+            $xpath = new \DOMXPath($document);
+
+            foreach (['monitoring-desktop-menu', 'monitoring-mobile-menu'] as $menuId) {
+                $menu = $xpath->query("//*[@id='{$menuId}']")->item(0);
+                $this->assertNotNull($menu);
+                $this->assertTrue($menu->hasAttribute('hidden'));
+
+                $items = $xpath->query("//*[@id='{$menuId}']/a");
+                $this->assertCount(3, $items);
+                $index = 0;
+                foreach ($links as $destination => $label) {
+                    $link = $items->item($index++);
+                    $this->assertSame(route($destination), $link->getAttribute('href'));
+                    $this->assertSame($label, trim($link->textContent));
+                    $this->assertSame($destination === $activeRoute ? 'page' : '', $link->getAttribute('aria-current'));
+                }
+            }
+
+            foreach (['monitoring-desktop-menu', 'monitoring-mobile-menu'] as $menuId) {
+                $button = $xpath->query("//button[@aria-controls='{$menuId}']")->item(0);
+                $this->assertNotNull($button);
+                $this->assertSame('false', $button->getAttribute('aria-expanded'));
+                $this->assertSame('Monitoring', trim($button->textContent));
+                $this->assertSame($activeRoute !== null, str_contains($button->getAttribute('class'), 'text-inka-red'));
+            }
+        }
+    }
+
     public function test_home_reads_sheet_cache_tables_instead_of_aggregating_program_submissions(): void
     {
         $user = User::factory()->create(['role' => 'admin', 'is_active' => true, 'must_change_password' => false]);

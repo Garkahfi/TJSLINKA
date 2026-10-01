@@ -2,6 +2,10 @@
     $publicNavbarUser = auth('web')->user();
     $publicNavbarName = trim(($publicNavbarUser?->nama_depan ?? '').' '.($publicNavbarUser?->nama_belakang ?? ''));
     $myDashboardRoute = $publicNavbarUser ? app(\App\Services\Auth\LoginDestination::class)->routeFor($publicNavbarUser) : null;
+    $monitoringTjslActive = request()->routeIs('home', 'monitoring.tjsl');
+    $monitoringBriActive = request()->routeIs('monitoring.bri');
+    $monitoringInkaActive = request()->routeIs('monitoring.inka');
+    $monitoringActive = $monitoringTjslActive || $monitoringBriActive || $monitoringInkaActive;
 @endphp
 
 <style>
@@ -23,6 +27,20 @@
     [data-language-check].invisible{visibility:hidden}
     .navbar-brand-group{display:flex;align-items:center;gap:14px}
     .navbar-corporate-logo{display:block;height:40px;width:auto;object-fit:contain}
+    .navbar-disclosure{position:relative;display:flex;height:100%;align-items:center}
+    .navbar-disclosure-button{display:inline-flex;min-height:44px;align-items:center;gap:5px;border:0;background:transparent;padding:0;font-family:inherit;cursor:pointer}
+    .navbar-disclosure-button svg,.mobile-monitoring-button svg{width:14px;height:14px;transition:transform .15s}
+    .navbar-disclosure-button[aria-expanded="true"] svg,.mobile-monitoring-button[aria-expanded="true"] svg{transform:rotate(180deg)}
+    .navbar-disclosure-menu{position:absolute;top:calc(100% - 5px);left:0;z-index:60;min-width:230px;max-width:calc(100vw - 40px);border:1px solid #e2e8f0;border-radius:6px;background:#fff;padding:5px;box-shadow:0 8px 18px rgba(15,23,42,.12)}
+    .navbar-disclosure-menu[hidden],.mobile-monitoring-submenu[hidden]{display:none}
+    .navbar-program-menu{left:50%;width:288px;transform:translateX(-50%)}
+    .navbar-disclosure-link{display:flex;min-height:44px;align-items:center;justify-content:space-between;gap:12px;border-radius:4px;padding:10px 12px;color:#18243d;font-size:14px;text-decoration:none}
+    .navbar-disclosure-link:hover,.navbar-disclosure-link:focus-visible{background:#f1f5f9}
+    .navbar-disclosure-link[aria-current="page"]{background:#fef2f2;color:#b91c1c;font-weight:700}
+    .navbar-disclosure-link svg{width:15px;height:15px;flex:none}
+    .mobile-monitoring-button{display:flex;width:100%;min-height:44px;align-items:center;justify-content:space-between;border:0;background:transparent;padding:0;text-align:left;cursor:pointer}
+    .mobile-monitoring-submenu{margin:0 0 2px 10px;border-left:1px solid #e2e8f0;padding-left:10px}
+    [data-mobile-menu]{max-height:calc(100dvh - 80px);overflow-y:auto}
 
     @media(max-width:640px){
         .navbar-brand-group{gap:10px}
@@ -46,15 +64,25 @@
         </a>
 
         <div class="hidden items-center gap-10 lg:flex">
-            <a class="nav-link {{ request()->routeIs('home', 'monitoring.*') ? 'text-inka-red' : '' }}" href="{{ route('home') }}">Home</a>
-            <a class="nav-link {{ request()->routeIs('teras') ? 'text-inka-red' : '' }}" href="{{ route('teras') }}">Teras TJSL</a>
-            <div class="group relative py-7">
-                <button class="nav-link inline-flex items-center gap-1" type="button">
-                    Program TJSL <span>⌄</span>
+            <div class="navbar-disclosure" data-nav-disclosure>
+                <button class="nav-link navbar-disclosure-button {{ $monitoringActive ? 'text-inka-red' : '' }}" type="button" data-nav-disclosure-button aria-expanded="false" aria-controls="monitoring-desktop-menu">
+                    Monitoring
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg>
                 </button>
-                <div class="invisible absolute left-1/2 top-17.5 w-72 -translate-x-1/2 rounded-lg bg-white p-2 opacity-0 shadow-xl group-hover:visible group-hover:opacity-100">
-                    <a href="{{ route('program.overview') }}" class="block rounded-md px-4 py-3 text-sm hover:bg-slate-100">Overview Program TJSL INKA</a>
-                    <a href="{{ route('program.rincian') }}" class="block rounded-md px-4 py-3 text-sm hover:bg-slate-100">Realisasi Program TJSL INKA</a>
+                <div id="monitoring-desktop-menu" class="navbar-disclosure-menu" data-nav-disclosure-menu hidden>
+                    <a href="{{ route('monitoring.tjsl') }}" class="navbar-disclosure-link" @if($monitoringTjslActive) aria-current="page" @endif>Realisasi TJSL @if($monitoringTjslActive)<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>@endif</a>
+                    <a href="{{ route('monitoring.bri') }}" class="navbar-disclosure-link" @if($monitoringBriActive) aria-current="page" @endif>PUMK BRI @if($monitoringBriActive)<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>@endif</a>
+                    <a href="{{ route('monitoring.inka') }}" class="navbar-disclosure-link" @if($monitoringInkaActive) aria-current="page" @endif>PUMK PT INKA @if($monitoringInkaActive)<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>@endif</a>
+                </div>
+            </div>
+            <a class="nav-link {{ request()->routeIs('teras') ? 'text-inka-red' : '' }}" href="{{ route('teras') }}">Teras TJSL</a>
+            <div class="navbar-disclosure" data-nav-disclosure>
+                <button class="nav-link navbar-disclosure-button" type="button" data-nav-disclosure-button aria-expanded="false" aria-controls="program-desktop-menu">
+                    Program TJSL <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg>
+                </button>
+                <div id="program-desktop-menu" class="navbar-disclosure-menu navbar-program-menu" data-nav-disclosure-menu hidden>
+                    <a href="{{ route('program.overview') }}" class="navbar-disclosure-link">Overview Program TJSL INKA</a>
+                    <a href="{{ route('program.rincian') }}" class="navbar-disclosure-link">Realisasi Program TJSL INKA</a>
                 </div>
             </div>
         </div>
@@ -119,7 +147,16 @@
 
     <div data-mobile-menu class="hidden border-t bg-white px-5 py-4 lg:hidden">
         <div class="flex flex-col gap-4">
-            <a class="nav-link" href="{{ route('home') }}">Home</a>
+            <div>
+                <button class="nav-link mobile-monitoring-button {{ $monitoringActive ? 'text-inka-red' : '' }}" type="button" data-mobile-monitoring-button aria-expanded="false" aria-controls="monitoring-mobile-menu">
+                    Monitoring <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 7 5 5 5-5"/></svg>
+                </button>
+                <div id="monitoring-mobile-menu" class="mobile-monitoring-submenu" data-mobile-monitoring-menu hidden>
+                    <a href="{{ route('monitoring.tjsl') }}" class="navbar-disclosure-link" @if($monitoringTjslActive) aria-current="page" @endif>Realisasi TJSL @if($monitoringTjslActive)<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>@endif</a>
+                    <a href="{{ route('monitoring.bri') }}" class="navbar-disclosure-link" @if($monitoringBriActive) aria-current="page" @endif>PUMK BRI @if($monitoringBriActive)<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>@endif</a>
+                    <a href="{{ route('monitoring.inka') }}" class="navbar-disclosure-link" @if($monitoringInkaActive) aria-current="page" @endif>PUMK PT INKA @if($monitoringInkaActive)<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>@endif</a>
+                </div>
+            </div>
             <a class="nav-link" href="{{ route('teras') }}">Teras TJSL</a>
             <a class="nav-link" href="{{ route('program.overview') }}">Overview Program</a>
             <a class="nav-link" href="{{ route('program.rincian') }}">Realisasi Program</a>
@@ -147,6 +184,9 @@
     var accountMenu=accountPicker?.querySelector('[data-account-menu]');
     var languageButton=languagePicker?.querySelector('[data-language-button]');
     var languageMenu=languagePicker?.querySelector('[data-language-menu]');
+    var navDisclosures=Array.from(document.querySelectorAll('[data-nav-disclosure]'));
+    var mobileMonitoringButton=document.querySelector('[data-mobile-monitoring-button]');
+    var mobileMonitoringMenu=document.querySelector('[data-mobile-monitoring-menu]');
 
     function closeMenu(button,menu){
         if(!button||!menu)return;
@@ -158,6 +198,31 @@
         menu.classList.remove('invisible','opacity-0');
         button.setAttribute('aria-expanded','true');
     }
+    function closeNavDisclosure(disclosure){
+        disclosure.querySelector('[data-nav-disclosure-menu]').hidden=true;
+        disclosure.querySelector('[data-nav-disclosure-button]').setAttribute('aria-expanded','false');
+    }
+    function closeMobileMonitoring(){
+        if(!mobileMonitoringButton||!mobileMonitoringMenu)return;
+        mobileMonitoringMenu.hidden=true;
+        mobileMonitoringButton.setAttribute('aria-expanded','false');
+    }
+    navDisclosures.forEach(function(disclosure){
+        var button=disclosure.querySelector('[data-nav-disclosure-button]');
+        var menu=disclosure.querySelector('[data-nav-disclosure-menu]');
+        button.addEventListener('click',function(){
+            var shouldOpen=menu.hidden;
+            navDisclosures.forEach(closeNavDisclosure);
+            closeMenu(accountButton,accountMenu);
+            closeMenu(languageButton,languageMenu);
+            if(shouldOpen){menu.hidden=false;button.setAttribute('aria-expanded','true');}
+        });
+    });
+    mobileMonitoringButton?.addEventListener('click',function(){
+        var shouldOpen=mobileMonitoringMenu.hidden;
+        closeMobileMonitoring();
+        if(shouldOpen){mobileMonitoringMenu.hidden=false;mobileMonitoringButton.setAttribute('aria-expanded','true');}
+    });
     function setLanguage(language){
         var selected=language==='en'?'en':'id';
         document.documentElement.lang=selected;
@@ -175,12 +240,14 @@
         event.stopPropagation();
         var shouldOpen=accountMenu.classList.contains('invisible');
         closeMenu(languageButton,languageMenu);
+        navDisclosures.forEach(closeNavDisclosure);
         shouldOpen?openMenu(accountButton,accountMenu):closeMenu(accountButton,accountMenu);
     });
     languageButton?.addEventListener('click',function(event){
         event.stopPropagation();
         var shouldOpen=languageMenu.classList.contains('invisible');
         closeMenu(accountButton,accountMenu);
+        navDisclosures.forEach(closeNavDisclosure);
         shouldOpen?openMenu(languageButton,languageMenu):closeMenu(languageButton,languageMenu);
     });
     document.querySelectorAll('[data-language-option]').forEach(function(option){
@@ -189,9 +256,16 @@
     document.addEventListener('click',function(event){
         if(accountPicker&&!accountPicker.contains(event.target))closeMenu(accountButton,accountMenu);
         if(languagePicker&&!languagePicker.contains(event.target))closeMenu(languageButton,languageMenu);
+        navDisclosures.forEach(function(disclosure){if(!disclosure.contains(event.target))closeNavDisclosure(disclosure);});
+        if(mobileMonitoringButton&&!mobileMonitoringButton.parentElement.contains(event.target))closeMobileMonitoring();
     });
     document.addEventListener('keydown',function(event){
         if(event.key==='Escape'){
+            var openDisclosure=navDisclosures.find(function(disclosure){return !disclosure.querySelector('[data-nav-disclosure-menu]').hidden;});
+            if(openDisclosure){openDisclosure.querySelector('[data-nav-disclosure-button]').focus();event.preventDefault();}
+            else if(mobileMonitoringMenu&&!mobileMonitoringMenu.hidden){mobileMonitoringButton.focus();event.preventDefault();}
+            navDisclosures.forEach(closeNavDisclosure);
+            closeMobileMonitoring();
             closeMenu(accountButton,accountMenu);
             closeMenu(languageButton,languageMenu);
         }

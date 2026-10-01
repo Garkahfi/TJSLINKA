@@ -2,9 +2,23 @@
     @include('pumk-admin.partials.module-styles')
 
     @php
-        $selectedCollectibility = (string) request('kolektibilitas');
+        $selectedCollectibility = (string) $selectedCollectibility;
         $statusFilter = $statusFilter ?? 'aktif';
+        $formatSummaryRupiah = static function (string $amount): string {
+            $negative = str_starts_with($amount, '-');
+            [$whole, $cents] = explode('.', ltrim($amount, '-'), 2);
+            $grouped = preg_replace('/\B(?=(\d{3})+(?!\d))/', '.', $whole);
+
+            return ($negative ? '-' : '').'Rp'.$grouped.($cents === '00' ? '' : ','.$cents);
+        };
     @endphp
+
+    <style>
+        .pumk-collectibility-footer td{border-top:2px solid #cbd5e1;overflow-wrap:anywhere}
+        .pumk-collectibility-footer .summary-label,.pumk-collectibility-footer .summary-amount{font-weight:700}
+        .pumk-collectibility-footer .summary-amount{text-align:right;white-space:nowrap}
+        .pumk-collectibility-footer .summary-note{display:block;margin-top:4px;color:#475569;font-size:11px;font-weight:400;line-height:1.4}
+    </style>
 
     <div class="pumk-page">
         <div class="pumk-page-header">
@@ -107,6 +121,24 @@
                         <tr><td colspan="7" class="pumk-empty">Tidak ada mitra yang sesuai dengan pencarian atau filter.</td></tr>
                     @endforelse
                     </tbody>
+                    @if($collectibilitySummary !== null)
+                        <tfoot class="pumk-collectibility-footer">
+                        <tr>
+                            <td colspan="5">
+                                <span class="summary-label">{{ $collectibilitySummary['unknown_balances'] > 0 ? 'Subtotal' : 'Total' }} Sisa {{ $collectibilityOptions[$selectedCollectibility] }}:</span>
+                                <span class="summary-note">Aktif dan Lunas/Arsip · seluruh halaman</span>
+                                @if($collectibilitySummary['unknown_balances'] > 0)
+                                    <span class="summary-note">{{ number_format($collectibilitySummary['unknown_balances'], 0, ',', '.') }} pinjaman pada kategori ini memiliki saldo belum tersedia.</span>
+                                @endif
+                                @if($collectibilitySummary['cache_differences'] > 0)
+                                    <span class="summary-note">{{ number_format($collectibilitySummary['cache_differences'], 0, ',', '.') }} saldo cache berbeda dari kartu; rekap memakai saldo kartu tanpa mengubah data.</span>
+                                @endif
+                            </td>
+                            <td class="summary-amount">{{ $formatSummaryRupiah($collectibilitySummary['nominal'][$selectedCollectibility]) }}</td>
+                            <td></td>
+                        </tr>
+                        </tfoot>
+                    @endif
                 </table>
             </div>
 

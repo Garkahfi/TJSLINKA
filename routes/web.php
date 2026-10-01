@@ -101,6 +101,7 @@ Route::middleware(['auth:pumk', 'role:pumk_admin', 'admin.password.changed'])
     ->group(function (): void {
         Route::get('/upload', [MonitoringUploadController::class, 'index'])->name('upload');
         Route::post('/upload', [MonitoringUploadController::class, 'store'])->name('upload.store');
+        Route::get('/template/pumk-bri', [MonitoringUploadController::class, 'downloadBriTemplate'])->name('template.bri');
     });
 
 Route::prefix('admin-pumk')->name('pumk-admin.')->group(function () {

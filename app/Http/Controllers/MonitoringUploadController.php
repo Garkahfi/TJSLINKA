@@ -12,6 +12,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use InvalidArgumentException;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
 
 class MonitoringUploadController extends Controller
@@ -19,6 +20,15 @@ class MonitoringUploadController extends Controller
     public function index(): View
     {
         return view('pumk-admin.monitoring.upload');
+    }
+
+    public function downloadBriTemplate(): BinaryFileResponse
+    {
+        return response()->download(
+            resource_path('templates/pumk-bri-snapshot.xlsx'),
+            'template-snapshot-pumk-bri.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
     }
 
     public function store(

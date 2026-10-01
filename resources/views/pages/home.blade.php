@@ -55,7 +55,7 @@
     >
     @endif
     <style>
-        .monitoring-dashboard-nav{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:18px 20px;background:#f3f3f3}.monitoring-dashboard-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:42px;border:1px solid #183153;border-radius:8px;background:#fff;padding:8px 18px;color:#183153;font-weight:700;text-decoration:none}.monitoring-dashboard-nav a[aria-current="page"]{background:#183153;color:#fff}.monitoring-dashboard-nav a:focus-visible{outline:3px solid #2563eb;outline-offset:3px}.monitoring-data-note{margin:12px 0;border:1px solid #eab308;border-radius:6px;background:#fefce8;padding:10px 14px;color:#713f12;font-size:12px;line-height:1.5}.monitoring-year-bar{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:12px 0}.monitoring-year-bar label{font-size:12px;font-weight:700}.monitoring-year-bar select{min-width:125px;border:1px solid #aebed4;border-radius:5px;padding:8px;background:#fff}.monitoring-year-bar button{border:0;border-radius:5px;background:#183153;padding:8px 14px;color:#fff;cursor:pointer}@media(max-width:600px){.monitoring-dashboard-nav{display:grid;grid-template-columns:1fr}.monitoring-dashboard-nav a{width:100%}.monitoring-year-bar{justify-content:stretch;flex-wrap:wrap}}
+        .monitoring-data-note{margin:12px 0;border:1px solid #eab308;border-radius:6px;background:#fefce8;padding:10px 14px;color:#713f12;font-size:12px;line-height:1.5}.monitoring-year-bar{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:12px 0}.monitoring-year-bar label{font-size:12px;font-weight:700}.monitoring-year-bar select{min-width:125px;border:1px solid #aebed4;border-radius:5px;padding:8px;background:#fff}.monitoring-year-bar button{border:0;border-radius:5px;background:#183153;padding:8px 14px;color:#fff;cursor:pointer}@media(max-width:600px){.monitoring-year-bar{justify-content:stretch;flex-wrap:wrap}}
         .tjsl-report-section{background:#f3f3f3;padding:48px 0}.tjsl-report-frame{border:2px solid #202020;background:#fff;padding:16px 20px 20px;color:#111827}.report-header{display:grid;grid-template-columns:190px minmax(0,1fr) 160px;align-items:center;gap:20px}.report-logo{display:block;width:auto;object-fit:contain}.report-logo.danantara{height:50px}.report-logo.inka{height:44px;justify-self:end}.report-title{margin:0;color:#a92d2f;font-size:25px;line-height:1.2;font-weight:700;text-align:center}.report-subhead{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:15px 0 10px;color:#6b7280;font-size:11px}.report-download{border:0;background:transparent;padding:0;color:#b42c30;font:600 11px Poppins,sans-serif;cursor:pointer}.report-download:hover{text-decoration:underline}.report-filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;margin-bottom:14px}.report-filter{width:100%;height:31px;box-sizing:border-box;border:1px solid #ba5759;border-radius:9px;background:#fff;padding:4px 12px;color:#a92d2f;font:500 11px Poppins,sans-serif;outline:none}.report-filter:focus{box-shadow:0 0 0 2px rgba(169,45,47,.15)}.report-grid{display:grid;grid-template-columns:1.02fr 1.03fr 2.05fr;grid-template-areas:"summary pillar tpb" "gauge pillar tpb" "priority priority regions" "featured featured regions";gap:10px}.report-card{box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:10px;box-shadow:0 2px 5px rgba(15,23,42,.13);overflow:hidden}.report-card-title{margin:0 0 8px;font-size:12px;line-height:1.35;font-weight:600;text-align:center}.report-summary{grid-area:summary;display:grid;grid-template-columns:1fr 1fr;gap:7px}.report-total-card{display:grid;min-height:57px;place-content:center;border:1px solid #e5e7eb;border-radius:9px;background:#fff;text-align:center;box-shadow:0 2px 5px rgba(15,23,42,.12)}.report-total-card span{font-size:11px}.report-total-card strong{margin-top:3px;color:#b13235;font-size:17px;line-height:1.1;font-weight:500}.report-gauge-card{grid-area:gauge}.report-gauge{position:relative;max-width:230px;height:132px;margin:0 auto}.report-gauge svg{display:block;width:100%;height:118px}.report-gauge-center{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);text-align:center;white-space:nowrap}.report-gauge-center span{display:block;color:#6b7280;font-size:11px}.report-gauge-center strong{display:block;margin-top:2px;font-size:25px;line-height:1}.report-gauge-scale{display:flex;justify-content:space-between;margin:-13px 15px 0;color:#6b7280;font-size:10px}.report-pillar-card{grid-area:pillar}.report-tpb-card{grid-area:tpb}.report-chart{position:relative;height:235px}.report-chart canvas,.pumk-chart canvas,.pumk-wide-chart canvas,.region-chart canvas{image-rendering:auto}.report-priority-card{grid-area:priority}.report-featured-card{grid-area:featured}.report-regions-card{grid-area:regions}.report-regions-content{display:grid;grid-template-columns:1.05fr 1fr;gap:12px;height:100%}.region-map{z-index:0;width:100%;height:100%;min-height:270px;overflow:hidden;border-radius:0;background:#e2e8f0}.report-table-wrap{overflow:auto}.report-table{width:100%;border-collapse:collapse;font-size:9px}.report-table th{background:#a92d2f;color:#fff;font-weight:600}.report-table.navy th{background:#0c2856}.report-table th,.report-table td{padding:5px 7px;border-bottom:1px solid #e5e7eb;text-align:left;white-space:nowrap}.report-table th:not(:first-child),.report-table td:not(:first-child){text-align:right}.report-table tbody tr:last-child td{border-bottom:0}.report-table .progress-cell{color:#111;text-align:center!important;font-weight:600}.report-empty{text-align:center!important;color:#6b7280;padding:24px 8px!important}.report-pillar-card .report-card-title,.report-tpb-card .report-card-title{min-height:30px;display:grid;place-items:center}.report-pillar-card .report-chart,.report-tpb-card .report-chart{height:240px}
 
         .pumk-section{background:#f3f3f3;padding:12px 0 56px}
@@ -85,6 +85,19 @@
         .pumk-live-section{background:#e9eef6;padding:12px 0 56px}.pumk-live-frame{border-color:#183153}.pumk-live-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}.pumk-empty-note{display:grid;height:100%;min-height:130px;place-items:center;color:#64748b;font-size:12px;text-align:center}.pumk-source-note{margin:12px 0 0;color:#64748b;font-size:10px;text-align:right}
         .pumk-bri-filter-bar{display:flex;min-height:58px;align-items:center;justify-content:flex-end;margin:14px 0 12px;border:1px solid #e2e8f0;border-radius:5px;background:#f8fafc;padding:10px 14px}.pumk-year-form{display:flex;align-items:center;gap:10px}.pumk-year-form label{font-size:12px;font-weight:600}.pumk-year-select{height:38px;min-width:130px;border:1px solid #aebed4;border-radius:5px;background:#fff;padding:0 35px 0 12px;color:#0f2855;font:600 13px Poppins,sans-serif;cursor:pointer}.pumk-bri-frame{border:2px solid #202020;background:#fff;padding:16px 20px 20px}.pumk-bri-report-title{color:#0f2855}.pumk-bri-validation-note{margin:0 0 12px;border:1px solid #f59e0b;border-radius:5px;background:#fffbeb;padding:9px 12px;color:#92400e;font-size:11px;line-height:1.5}.pumk-bri-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}.pumk-bri-summary-card{min-height:96px;border:1px solid #aebed4;border-radius:5px;background:#fff;padding:16px;box-shadow:0 2px 5px rgba(15,23,42,.07)}.pumk-bri-summary-card span{display:block;color:#0c48ac;font-size:12px;line-height:1.45;font-weight:700}.pumk-bri-summary-card strong,.pumk-bri-summary-card strong.neutral{display:block;margin-top:10px;color:#0662df;font-size:20px;line-height:1.2;font-weight:700}.pumk-bri-summary-card small{display:block;margin-top:6px;color:#94a3b8;font-size:9px}.pumk-bri-primary{display:grid;grid-template-columns:.9fr 1.15fr 1.15fr;gap:12px;margin-bottom:12px}.pumk-bri-lower{display:grid;grid-template-columns:1.55fr 1fr;gap:12px;margin-bottom:12px}.pumk-bri-data-grid{display:grid;grid-template-columns:1.65fr 1fr;gap:12px}.pumk-bri-card{box-sizing:border-box;border:1px solid #aebed4;border-radius:5px;background:#fff;padding:13px;box-shadow:0 2px 5px rgba(15,23,42,.06);overflow:hidden}.pumk-bri-card-title{min-height:28px;margin:0 0 8px;display:flex;align-items:center;color:#0f2855;text-align:left;font-size:13px;line-height:1.4;font-weight:700}.pumk-bri-chart{position:relative;height:225px}.pumk-bri-gauge{position:relative;max-width:250px;height:208px;margin:0 auto}.pumk-bri-gauge svg{display:block;width:100%;height:180px}.pumk-bri-gauge-center{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);color:#0f2855;text-align:center;white-space:nowrap}.pumk-bri-gauge-center span{display:block;color:#0f2855;font-size:10px}.pumk-bri-gauge-center strong{display:block;margin-top:4px;font-size:27px;line-height:1}.pumk-bri-gauge-scale{display:flex;justify-content:space-between;margin:-28px 10px 0;color:#0f2855;font-size:10px}.pumk-bri-map{position:relative;z-index:0;height:310px;border-radius:4px;background:#e2e8f0}.pumk-map-card-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px}.pumk-map-card-footer span{color:#64748b;font-size:10px}.pumk-map-toggle{border:1px solid #0874f9;border-radius:4px;background:#fff;padding:8px 26px;color:#0562d6;font:600 11px Poppins,sans-serif;cursor:pointer}.pumk-map-table-wrap{overflow-x:auto}.pumk-map-table{width:100%;border-collapse:collapse;font-size:11px}.pumk-map-table th{background:#e7edf5;color:#0f2855;font-weight:600}.pumk-map-table th,.pumk-map-table td{padding:9px 11px;border:1px solid #cbd5e1;text-align:left}.pumk-map-table th:not(:first-child),.pumk-map-table td:not(:first-child){text-align:right}.pumk-map-table tbody tr:hover{background:#f8fafc}.pumk-region-note{margin:8px 0 0;color:#64748b;font-size:9px;line-height:1.45}.pumk-bri-empty{position:absolute;inset:0;display:grid;place-items:center;padding:16px;color:#64748b;font-size:11px;text-align:center}.pumk-rka-note{display:flex;align-items:center;gap:7px;margin-top:10px;border-radius:4px;background:#fff7ed;padding:8px 10px;color:#9a3412;font-size:9px;line-height:1.4}.pumk-rka-panel{border-color:#ef4444;background:#fffafa}.pumk-rka-panel .pumk-bri-card-title{justify-content:center;color:#dc2626}.pumk-rka-list{display:grid;gap:5px;border:1px solid #fecaca;border-radius:4px;background:#fff;padding:10px 12px}.pumk-rka-row{display:grid;grid-template-columns:1fr auto;gap:12px;color:#b91c1c;font-size:10px}.pumk-rka-row strong{font-weight:600}.pumk-rka-empty-note{margin:9px 0 0;color:#b91c1c;font-size:9px;line-height:1.45;text-align:center}
         .pumk-map-state{position:absolute;inset:0;z-index:500;display:grid;place-items:center;background:#eef2f7;padding:20px;color:#64748b;font-size:11px;line-height:1.55;text-align:center}.pumk-map-state[hidden]{display:none}.pumk-map-legend{border-radius:5px;background:rgba(255,255,255,.94);padding:8px 10px;box-shadow:0 1px 5px rgba(15,23,42,.25);color:#334155;font:500 9px Poppins,sans-serif}.pumk-map-legend strong{display:block;margin-bottom:5px;color:#0f2855;font-size:10px}.pumk-map-legend-scale{display:flex;align-items:center;gap:4px}.pumk-map-legend-swatch{width:24px;height:8px;border-radius:2px}.pumk-map-tooltip{min-width:175px;font:500 10px/1.55 Poppins,sans-serif}.pumk-map-tooltip strong{display:block;margin-bottom:4px;color:#0f2855;font-size:11px}.pumk-map-tooltip-row{display:flex;justify-content:space-between;gap:14px}.pumk-map-actions{display:flex;align-items:center;gap:7px}.pumk-map-reset{border:0;background:transparent;padding:7px;color:#64748b;font:500 10px Poppins,sans-serif;cursor:pointer}.pumk-map-reset[hidden]{display:none}.pumk-map-caption{margin:8px 0 0;color:#64748b;font-size:9px;line-height:1.45}.pumk-map-unmapped{color:#b45309}.pumk-map-table tbody tr.is-filtered-out{display:none}.pumk-map-table tbody tr.is-selected{background:#eff6ff}.pumk-region-filter-note{margin:0 0 8px;color:#0f2855;font-size:10px;font-weight:600}
+        .pumk-live-frame .pumk-report-title,
+        .pumk-live-summary .pumk-total-card,
+        .pumk-live-summary .pumk-total-card strong,
+        .pumk-bri-summary-card span,
+        .pumk-bri-summary-card strong,
+        .pumk-bri-summary-card strong.neutral{color:#000}
+        .pumk-bri-gauge-center strong{color:#0F172A}
+        .pumk-bri-lower > .pumk-bri-card:last-child{display:flex;flex-direction:column}
+        .pumk-bri-lower > .pumk-bri-card:last-child .pumk-bri-chart{flex:1 1 225px;height:auto;min-height:225px}
+        .pumk-bri-data-grid > .pumk-bri-card:first-child{display:flex;flex-direction:column}
+        .pumk-bri-data-grid > .pumk-bri-card:first-child .pumk-map-table-wrap{flex:1 1 auto;display:flex;min-height:0}
+        .pumk-bri-data-grid > .pumk-bri-card:first-child .pumk-map-table{height:100%}
+        .pumk-bri-data-grid > .pumk-bri-card:first-child:has(.pumk-map-table tbody tr.is-filtered-out) .pumk-map-table{height:auto;align-self:flex-start}
         .faq-section{background:#f3f3f3;padding:34px 0 56px}
         .faq-heading{margin:0 0 34px;text-align:center;font-size:42px;line-height:1.2;font-weight:800;color:#050505}
 
@@ -420,7 +433,55 @@
                 return pumkColors[hash % pumkColors.length];
             }
 
-            function renderDistribution(canvasId, items, type, colors) {
+            const collectibilityColors = {
+                l: '#22C55E',
+                lancar: '#22C55E',
+                kl: '#EAB308',
+                'kurang lancar': '#EAB308',
+                d: '#F97316',
+                diragukan: '#F97316',
+                m: '#DC2626',
+                macet: '#DC2626',
+            };
+
+            function resolveCollectibilityColor(value) {
+                const candidates = value && typeof value === 'object' ? [value.kode, value.label] : [value];
+                for (const candidate of candidates) {
+                    const key = String(candidate ?? '').trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+                    if (Object.prototype.hasOwnProperty.call(collectibilityColors, key)) {
+                        return collectibilityColors[key];
+                    }
+                }
+                return '#94A3B8';
+            }
+
+            const sectorPalette = {
+                perdagangan: '#3B82F6',
+                jasa: '#14B8A6',
+                industri: '#6366F1',
+                'industri makanan minuman': '#6366F1',
+                'industri meubel': '#6366F1',
+                'industri bengkel pertukangan': '#6366F1',
+                'industri pengolahan': '#6366F1',
+                'industri kreatif': '#6366F1',
+                'industri konveksi': '#6366F1',
+                pertanian: '#38BDF8',
+                peternakan: '#A78BFA',
+                lainnya: '#94A3B8',
+            };
+
+            function resolveSectorColor(value) {
+                const candidates = value && typeof value === 'object' ? [value.kode, value.label] : [value];
+                for (const candidate of candidates) {
+                    const key = String(candidate ?? '').trim().toLowerCase().replace(/[\s_\/-]+/g, ' ');
+                    if (Object.prototype.hasOwnProperty.call(sectorPalette, key)) {
+                        return sectorPalette[key];
+                    }
+                }
+                return '#94A3B8';
+            }
+
+            function renderDistribution(canvasId, items, type, colors, colorResolver) {
                 const canvas = document.getElementById(canvasId);
                 if (!canvas || !window.Chart || !Array.isArray(items) || items.length === 0) return;
 
@@ -431,6 +492,7 @@
                         datasets: [{
                             data: items.map(function (item) { return item.nilai; }),
                             backgroundColor: items.map(function (item, index) {
+                                if (colorResolver) return colorResolver(item);
                                 return Array.isArray(colors) && colors[index]
                                     ? colors[index]
                                     : categoryColor(item.label);
@@ -448,7 +510,7 @@
                 });
             }
 
-            function renderTrend(canvasId, trend, type, stacked) {
+            function renderTrend(canvasId, trend, type, stacked, colorResolver) {
                 const canvas = document.getElementById(canvasId);
                 if (!canvas || !window.Chart || !trend || !trend.datasets || trend.datasets.length === 0) return;
 
@@ -457,7 +519,7 @@
                     data: {
                         labels: trend.labels,
                         datasets: trend.datasets.map(function (dataset, index) {
-                            const color = categoryColor(dataset.label);
+                            const color = colorResolver ? colorResolver(dataset.label) : categoryColor(dataset.label);
                             return Object.assign({}, dataset, {
                                 borderColor: color,
                                 backgroundColor: type === 'bar' ? color : color + '24',
@@ -493,11 +555,8 @@
                 });
             }
 
-            const sectorColors = ['#0c65c6', '#3f8dde', '#72ace7', '#a3c9ef', '#d4e6f8', '#8baed3', '#507eb7', '#174f91'];
-            const qualityColors = ['#0b72e7', '#69a7e8', '#9fc8f2', '#cce1f7'];
-
-            renderDistribution('pumk-portfolio-chart', pumkBri.sektor, 'pie', sectorColors);
-            renderDistribution('pumk-quality-chart', pumkBri.kualitas, 'pie', qualityColors);
+            renderDistribution('pumk-portfolio-chart', pumkBri.sektor, 'pie', null, resolveSectorColor);
+            renderDistribution('pumk-quality-chart', pumkBri.kualitas, 'pie', null, resolveCollectibilityColor);
 
             const outstandingMonthCanvas = document.getElementById('pumk-outstanding-month-chart');
             if (outstandingMonthCanvas && window.Chart && Array.isArray(pumkBri.tren_outstanding) && pumkBri.tren_outstanding.length) {
@@ -556,8 +615,8 @@
                 });
             }
 
-            renderDistribution('pumk-live-sector-chart', pumkLive.sektor, 'doughnut');
-            renderDistribution('pumk-live-quality-chart', pumkLive.kolektibilitas, 'pie');
+            renderDistribution('pumk-live-sector-chart', pumkLive.sektor, 'doughnut', null, resolveSectorColor);
+            renderDistribution('pumk-live-quality-chart', pumkLive.kolektibilitas, 'pie', null, resolveCollectibilityColor);
             renderTrend('pumk-live-province-chart', {
                 labels: (pumkLive.sebaran_provinsi || []).map(function (item) { return item.label; }),
                 datasets: [{
@@ -565,7 +624,7 @@
                     data: (pumkLive.sebaran_provinsi || []).map(function (item) { return item.nilai; }),
                 }],
             }, 'bar', false);
-            renderTrend('pumk-live-quality-trend-chart', pumkLive.tren_kolektibilitas, 'bar', false);
+            renderTrend('pumk-live-quality-trend-chart', pumkLive.tren_kolektibilitas, 'bar', false, resolveCollectibilityColor);
 
             const pumkMapData = pumkBri.peta || {};
             const pumkMapElement = document.getElementById('pumk-bri-map');
@@ -856,12 +915,6 @@
         data-pumk-live="{{ collect($pumkLiveDashboard)->except('updated_at')->toJson() }}"
         @endif
     ></template>
-    <nav class="monitoring-dashboard-nav" aria-label="Pilih dashboard monitoring">
-        <a href="{{ route('monitoring.tjsl') }}" @if($dashboardType === 'tjsl') aria-current="page" @endif>Realisasi TJSL</a>
-        <a href="{{ route('monitoring.bri') }}" @if($dashboardType === 'bri') aria-current="page" @endif>PUMK BRI</a>
-        <a href="{{ route('monitoring.inka') }}" @if($dashboardType === 'inka') aria-current="page" @endif>PUMK PT INKA</a>
-    </nav>
-
     @if($dashboardType === 'tjsl')
     <section class="tjsl-report-section">
         <div class="container-site">
@@ -1094,11 +1147,11 @@
                         <h4 class="pumk-bri-card-title">Progres Penyaluran</h4>
                         <div class="pumk-bri-gauge">
                             <svg viewBox="0 0 220 120" aria-hidden="true">
-                                <path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#dbe4f0" stroke-width="29" pathLength="100" />
+                                <path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="#E2E8F0" stroke-width="29" pathLength="100" />
                                 <path
                                     d="M20 110 A90 90 0 0 1 200 110"
                                     fill="none"
-                                    stroke="#243b7a"
+                                    stroke="#2563EB"
                                     stroke-width="29"
                                     pathLength="100"
                                     @style(['stroke-dasharray:'.($pumkBriDashboard['ringkasan']['progres'] ?? 0).' 100'])
