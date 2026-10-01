@@ -43,7 +43,7 @@ class PublicAuthenticationTest extends TestCase
         $this->get(route('home'))
             ->assertOk()
             ->assertSeeInOrder([
-                'aria-label="Pilih dashboard monitoring"',
+                'id="monitoring-desktop-menu"',
                 'Realisasi Anggaran Program TJSL',
                 'Frequently Asked Questions (FAQ)',
             ], false)

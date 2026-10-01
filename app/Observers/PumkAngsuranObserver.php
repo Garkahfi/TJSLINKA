@@ -5,6 +5,9 @@ namespace App\Observers;
 use App\Models\PumkAngsuran;
 use App\Models\PumkPinjaman;
 use App\Services\Pumk\PiutangCalculator;
+use App\Services\Monitoring\PumkClassificationService;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -53,7 +56,13 @@ class PumkAngsuranObserver
     private function sync(?int $id): void
     {
         if ($loan = PumkPinjaman::find($id)) {
+            $before = $loan->kolektibilitas;
             app(PiutangCalculator::class)->sinkronkanCache($loan);
+            // Initial cache population is not a new business classification event.
+            if ($before !== null && $before !== $loan->kolektibilitas) {
+                app(PumkClassificationService::class)->record(null, $loan, 'kolektibilitas', $loan->kolektibilitas,
+                    CarbonImmutable::now('Asia/Jakarta'), 'estimate', (string) Str::uuid(), auth('pumk')->id());
+            }
         }
     }
 

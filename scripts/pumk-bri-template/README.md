@@ -1,0 +1,5 @@
+# Regenerasi template Snapshot PUMK BRI
+
+File yang disajikan aplikasi adalah `resources/templates/pumk-bri-snapshot.xlsx`. Jika kontrak sembilan kolom pada `PumkBriSnapshotImportService` berubah, perbarui `build.mjs`, lalu jalankan generator pada lingkungan pengembangan dengan `@oai/artifact-tool` tersedia. Tautkan sementara `node_modules` milik tool tersebut ke direktori ini (junction pada Windows), kemudian jalankan `node scripts/pumk-bri-template/build.mjs` dari akar proyek. Jangan menambah dependency Node/Composer produksi hanya untuk unduhan statis ini.
+
+Generator membuat dua sheet, memverifikasi hasil awal rumus, dan menyimpan aset XLSX dengan cached total `0` serta mode hitung otomatis. Setelah regenerasi, jalankan `php artisan test --filter=PumkBriTemplateDownloadTest` dan `php artisan test --filter=MonitoringUploadChoiceTest`. Uji satu salinan file yang diisi dan disimpan lewat Excel sebelum menyerahkan perubahan format kepada staf; jangan isi aset template produksi dengan data uji.

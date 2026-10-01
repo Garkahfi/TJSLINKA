@@ -3,6 +3,7 @@
 
     @php
         $editing = $mitra->exists;
+        $archiveEdit = $pinjaman->exists && ($pinjaman->status !== \App\Models\PumkPinjaman::STATUS_AKTIF || ! $pinjaman->is_active);
         $formAction = $editing ? route('pumk-admin.mitra.update', $mitra) : route('pumk-admin.mitra.store');
         $dateValue = static fn ($value) => $value ? \Illuminate\Support\Carbon::parse($value)->format('Y-m-d') : '';
     @endphp
@@ -10,7 +11,7 @@
     <div class="pumk-page">
         <div class="pumk-page-header">
             <div>
-                <h1 class="pumk-page-title">{{ $editing ? 'Edit Mitra Binaan' : 'Tambah Mitra Binaan' }}</h1>
+                <h1 class="pumk-page-title">{{ $archiveEdit ? 'Edit Arsip dan Dokumen' : ($editing ? 'Edit Mitra Binaan' : 'Tambah Mitra Binaan') }}</h1>
                 <p class="pumk-page-subtitle">Data tersimpan langsung tanpa alur approval. Kolom bertanda * wajib diisi.</p>
             </div>
         </div>
@@ -27,6 +28,11 @@
         <form id="pumk-mitra-form" method="POST" action="{{ $formAction }}" autocomplete="off" enctype="multipart/form-data">
             @csrf
             @if($editing) @method('PUT') @endif
+            @if($pinjaman->exists)<input type="hidden" name="pinjaman_id" value="{{ $pinjaman->id }}">@endif
+            @if($archiveEdit)
+                <div class="pumk-alert success">Status lunas/arsip dan saldo tetap. Anda dapat memperbarui identitas, nomor kontrak, jaminan, dan dokumen SPJ. Koreksi transaksi keuangan memerlukan tindakan Buka Kembali Pinjaman.</div>
+                <div class="pumk-field"><label for="edit_reason">Alasan perubahan arsip *</label><textarea id="edit_reason" name="edit_reason" class="pumk-textarea" required minlength="5" maxlength="1000">{{ old('edit_reason') }}</textarea></div>
+            @endif
 
             <section class="pumk-card pumk-section">
                 <h2 class="pumk-section-title">Identitas Mitra</h2>
@@ -79,7 +85,7 @@
                         <input id="no_rekening" name="no_rekening" class="pumk-input" value="{{ old('no_rekening', $mitra->no_rekening_encrypted) }}" maxlength="64" inputmode="numeric" autocomplete="off">
                     </div>
                 </div>
-                <p class="pumk-note">Nomor KTP, telepon, dan rekening disimpan dalam bentuk terenkripsi serta tidak ditampilkan pada halaman daftar. Status Mitra ditentukan otomatis dari pinjamannya; Mitra arsip yang disimpan dari halaman ini akan memperoleh fasilitas pinjaman aktif baru tanpa menghapus histori lama.</p>
+                <p class="pumk-note">Nomor KTP, telepon, dan rekening disimpan dalam bentuk terenkripsi serta tidak ditampilkan pada halaman daftar. Mengedit data atau dokumen tidak mengaktifkan pinjaman arsip. Gunakan tindakan Buka Kembali Pinjaman untuk koreksi fasilitas lama.</p>
             </section>
 
             <section class="pumk-card pumk-section">
@@ -107,31 +113,31 @@
                     </div>
                     <div class="pumk-field">
                         <label for="tanggal_pencairan">Tanggal Pencairan</label>
-                        <input id="tanggal_pencairan" type="date" name="tanggal_pencairan" class="pumk-input" value="{{ old('tanggal_pencairan', $dateValue($pinjaman->tanggal_pencairan)) }}">
+                        <input id="tanggal_pencairan" type="date" name="tanggal_pencairan" @disabled($archiveEdit) class="pumk-input" value="{{ old('tanggal_pencairan', $dateValue($pinjaman->tanggal_pencairan)) }}">
                     </div>
                     <div class="pumk-field">
                         <label for="mulai_angsuran">Mulai Angsuran</label>
-                        <input id="mulai_angsuran" type="date" name="mulai_angsuran" class="pumk-input" value="{{ old('mulai_angsuran', $dateValue($pinjaman->mulai_angsuran)) }}">
+                        <input id="mulai_angsuran" type="date" name="mulai_angsuran" @disabled($archiveEdit) class="pumk-input" value="{{ old('mulai_angsuran', $dateValue($pinjaman->mulai_angsuran)) }}">
                     </div>
                     <div class="pumk-field">
                         <label for="selesai_angsuran">Selesai Angsuran</label>
-                        <input id="selesai_angsuran" type="date" name="selesai_angsuran" class="pumk-input" value="{{ old('selesai_angsuran', $dateValue($pinjaman->selesai_angsuran)) }}">
+                        <input id="selesai_angsuran" type="date" name="selesai_angsuran" @disabled($archiveEdit) class="pumk-input" value="{{ old('selesai_angsuran', $dateValue($pinjaman->selesai_angsuran)) }}">
                     </div>
                     <div class="pumk-field">
                         <label for="pinjaman_pokok">Pinjaman Pokok (Rp)</label>
-                        <input id="pinjaman_pokok" type="number" min="0" step="0.01" name="pinjaman_pokok" class="pumk-input" value="{{ old('pinjaman_pokok', $pinjaman->pinjaman_pokok) }}">
+                        <input id="pinjaman_pokok" type="number" min="0" step="0.01" name="pinjaman_pokok" @disabled($archiveEdit) class="pumk-input" value="{{ old('pinjaman_pokok', $pinjaman->pinjaman_pokok) }}">
                     </div>
                     <div class="pumk-field">
                         <label for="persen_bunga">Persentase Bunga</label>
-                        <input id="persen_bunga" type="number" min="0" step="0.0001" name="persen_bunga" class="pumk-input" value="{{ old('persen_bunga', $pinjaman->persen_bunga) }}">
+                        <input id="persen_bunga" type="number" min="0" step="0.0001" name="persen_bunga" @disabled($archiveEdit) class="pumk-input" value="{{ old('persen_bunga', $pinjaman->persen_bunga) }}">
                     </div>
                     <div class="pumk-field">
                         <label for="pinjaman_bunga">Nilai Bunga (Rp)</label>
-                        <input id="pinjaman_bunga" type="number" min="0" step="0.01" name="pinjaman_bunga" class="pumk-input" value="{{ old('pinjaman_bunga', $pinjaman->pinjaman_bunga) }}">
+                        <input id="pinjaman_bunga" type="number" min="0" step="0.01" name="pinjaman_bunga" @disabled($archiveEdit) class="pumk-input" value="{{ old('pinjaman_bunga', $pinjaman->pinjaman_bunga) }}">
                     </div>
                     <div class="pumk-field">
                         <label for="nilai_angsuran_bulanan">Angsuran Bulanan (Rp)</label>
-                        <input id="nilai_angsuran_bulanan" type="number" min="0" step="0.01" name="nilai_angsuran_bulanan" class="pumk-input" value="{{ old('nilai_angsuran_bulanan', $pinjaman->nilai_angsuran_bulanan) }}">
+                        <input id="nilai_angsuran_bulanan" type="number" min="0" step="0.01" name="nilai_angsuran_bulanan" @disabled($archiveEdit) class="pumk-input" value="{{ old('nilai_angsuran_bulanan', $pinjaman->nilai_angsuran_bulanan) }}">
                     </div>
                 </div>
             </section>
