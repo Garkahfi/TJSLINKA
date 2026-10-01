@@ -55,8 +55,8 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
-      - name: Execute PUMK settlement regression tests
-        run: php artisan test --filter='PumkArchiveWorkflowTest|PumkLoanCompletionTest|PumkInternalMonitoringYearTest'
+      - name: Execute PUMK financial regression tests
+        run: php artisan test --filter='PumkPiutangCalculatorTest|KartuPiutangServiceTest|PumkCollectibilitySummaryTest|PumkPiutangReconciliationTest|PumkImportServiceTest|PumkMitraManagementTest|PumkArchiveWorkflowTest|PumkLoanCompletionTest|PumkInternalMonitoringYearTest'
 
       - name: Execute tests
         run: php artisan test

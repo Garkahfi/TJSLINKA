@@ -45,9 +45,9 @@ class PumkCollectibilitySummaryService
                     if ($selectedCategory !== null && $category !== $selectedCategory) {
                         continue;
                     }
-                    $amount = $loan->status === PumkPinjaman::STATUS_LUNAS
-                        ? $this->closedBalance($loan)
-                        : $this->activeBalance($loan, $cacheDifferences);
+                    $position = $this->positionForLoan($loan);
+                    $amount = $position['balance'];
+                    $cacheDifferences += (int) $position['cache_difference'];
                     if ($amount === null) {
                         $unknownBalances++;
 
@@ -64,6 +64,45 @@ class PumkCollectibilitySummaryService
             'cache_differences' => $cacheDifferences,
             'status_flag_mismatches' => $statusFlagMismatches,
         ];
+    }
+
+    /** The audit and footer must use the same read-only financial position.
+     * @return array{category:string,balance:?string,cache_difference:bool}
+     */
+    public function positionForLoan(PumkPinjaman $loan): array
+    {
+        $loan->loadMissing(['saldoAwal', 'angsuran', 'closures', 'classificationHistory']);
+        $differences = 0;
+
+        return [
+            'category' => $this->categoryAtCurrentStatus($loan),
+            'balance' => $loan->status === PumkPinjaman::STATUS_LUNAS
+                ? $this->closedBalance($loan)
+                : $this->activeBalance($loan, $differences),
+            'cache_difference' => $differences > 0,
+        ];
+    }
+
+    /** Match the table to the same category policy, including closure history.
+     * @param  array<string,mixed>  $filters
+     * @return list<int>
+     */
+    public function matchingLoanIds(array $filters, string $category): array
+    {
+        if (! in_array($category, self::CATEGORIES, true)) {
+            throw new InvalidArgumentException('Kategori kolektibilitas tidak dikenal.');
+        }
+        $ids = [];
+        $this->ownerScope($filters)->select(['id', 'mitra_id', 'status', 'lunas_at', 'kolektibilitas'])
+            ->with(['closures', 'classificationHistory'])->chunkById(200, function ($loans) use ($category, &$ids): void {
+                foreach ($loans as $loan) {
+                    if ($this->categoryAtCurrentStatus($loan) === $category) {
+                        $ids[] = $loan->id;
+                    }
+                }
+            });
+
+        return $ids;
     }
 
     /** @param array<string, mixed> $filters */
@@ -84,16 +123,13 @@ class PumkCollectibilitySummaryService
 
     private function activeBalance(PumkPinjaman $loan, int &$cacheDifferences): ?string
     {
-        if ($loan->total_sisa === null) {
-            return null;
-        }
-        $cached = (string) $loan->total_sisa;
+        $cached = $loan->total_sisa === null ? null : (string) $loan->total_sisa;
         if (! $this->hasCardComponents($loan)) {
             return $cached;
         }
 
         $calculated = (string) $this->calculator->hitungUntukPinjaman($loan)['total_sisa'];
-        if (bccomp($cached, $calculated, 2) !== 0) {
+        if ($cached === null || bccomp($cached, $calculated, 2) !== 0) {
             $cacheDifferences++;
         }
 
@@ -138,6 +174,10 @@ class PumkCollectibilitySummaryService
     {
         $value = $loan->kolektibilitas;
         if ($loan->status === PumkPinjaman::STATUS_LUNAS && $loan->lunas_at !== null) {
+            $closure = $loan->closures->whereNull('reopened_at')->sortByDesc('id')->first();
+            if ($closure !== null && array_key_exists('kolektibilitas', $closure->settlement_snapshot ?? [])) {
+                return self::normalizeCategory($closure->settlement_snapshot['kolektibilitas']);
+            }
             $closedDate = $loan->lunas_at->timezone('Asia/Jakarta')->toDateString();
             $history = $loan->classificationHistory->where('attribute', 'kolektibilitas');
             if ($history->contains(fn ($item): bool => $item->effective_from->toDateString() > $closedDate)) {
@@ -147,6 +187,11 @@ class PumkCollectibilitySummaryService
             }
         }
 
+        return self::normalizeCategory($value);
+    }
+
+    public static function normalizeCategory(?string $value): string
+    {
         return match (str_replace([' ', '-'], '_', strtolower(trim((string) $value)))) {
             'l', 'lancar' => 'lancar',
             'kl', 'kurang_lancar' => 'kurang_lancar',

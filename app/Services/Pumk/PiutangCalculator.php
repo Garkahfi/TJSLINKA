@@ -29,15 +29,15 @@ class PiutangCalculator
         $saldoAwal = $pinjaman->saldoAwal;
         $pokokMasuk = $this->add(
             $saldoAwal?->pokok_masuk,
-            $pinjaman->angsuran->sum(fn ($item) => (float) $item->pokok),
+            ...$pinjaman->angsuran->pluck('pokok')->all(),
         );
         $bungaMasuk = $this->add(
             $saldoAwal?->bunga_masuk,
-            $pinjaman->angsuran->sum(fn ($item) => (float) $item->bunga),
+            ...$pinjaman->angsuran->pluck('bunga')->all(),
         );
         $dendaMasuk = $this->add(
             $saldoAwal?->denda,
-            $pinjaman->angsuran->sum(fn ($item) => (float) $item->denda),
+            ...$pinjaman->angsuran->pluck('denda')->all(),
         );
 
         $sisaPokokHitung = $this->sub($pinjaman->pinjaman_pokok, $pokokMasuk);
@@ -242,7 +242,7 @@ class PiutangCalculator
             return $baselineMonths;
         }
 
-        return (int) ceil((float) bcdiv($adjustedArrearsValue, $installment, 6));
+        return $this->arrearsMonths($adjustedArrearsValue, $installment);
     }
 
     /**
@@ -291,14 +291,26 @@ class PiutangCalculator
             return [0, '0.00'];
         }
 
-        $bulanTunggakan = (int) ceil((float) bcdiv($nilaiTunggakan, $angsuranBulanan, 6));
+        $bulanTunggakan = $this->arrearsMonths($nilaiTunggakan, $angsuranBulanan);
 
         return [$bulanTunggakan, $nilaiTunggakan];
     }
 
     private function money(mixed $value): string
     {
-        return number_format((float) ($value ?? 0), 2, '.', '');
+        // Model casts and import baselines already contain decimal strings.
+        // Converting them to float loses cents on large balances.
+        return bcadd((string) ($value ?? '0.00'), '0.00', 2);
+    }
+
+    private function arrearsMonths(string $arrears, string $installment): int
+    {
+        $wholeMonths = bcdiv($arrears, $installment, 0);
+        $covered = bcmul($wholeMonths, $installment, 2);
+
+        // Compare the actual remainder, instead of truncating the quotient to
+        // six decimal places before ceil(). Even one remaining cent matters.
+        return (int) $wholeMonths + (bccomp($covered, $arrears, 2) < 0 ? 1 : 0);
     }
 
     private function add(mixed ...$values): string

@@ -107,7 +107,7 @@ class PumkLoanSettlementService
                 'pinjaman_id' => $loan->id, 'closed_at' => $closedAt, 'closed_by' => $actorId,
                 'settlement_snapshot' => $loan->only([
                     'lunas_reason', 'lunas_note', 'lunas_saldo_pokok', 'lunas_saldo_bunga',
-                    'lunas_total_saldo', 'lunas_tolerance_applied',
+                    'lunas_total_saldo', 'lunas_tolerance_applied', 'kolektibilitas',
                 ]),
             ]);
             $this->activity->record('mark_loan_paid', 'pumk_internal', 'Menandai pinjaman sebagai lunas.', $loan, metadata: [
@@ -149,7 +149,7 @@ class PumkLoanSettlementService
                 'closed_at' => $loan->lunas_at, 'closed_by' => $loan->lunas_by,
                 'settlement_snapshot' => $loan->only([
                     'lunas_reason', 'lunas_note', 'lunas_saldo_pokok', 'lunas_saldo_bunga',
-                    'lunas_total_saldo', 'lunas_tolerance_applied',
+                    'lunas_total_saldo', 'lunas_tolerance_applied', 'kolektibilitas',
                 ]),
             ]);
             $reopenedAt = now();

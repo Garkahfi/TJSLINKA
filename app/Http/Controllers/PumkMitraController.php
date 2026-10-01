@@ -43,6 +43,9 @@ class PumkMitraController extends Controller
         ]);
         $statusFilter = $filters['status'] ?? 'aktif';
         $selectedCollectibility = $filters['kolektibilitas'] ?? null;
+        $matchingLoanIds = $selectedCollectibility !== null
+            ? $collectibilitySummary->matchingLoanIds($filters, $selectedCollectibility)
+            : null;
 
         $mitraQuery = PumkMitra::query()
             ->withExists('pinjamanAktif')
@@ -53,6 +56,7 @@ class PumkMitraController extends Controller
                     ->select(['id', 'mitra_id', 'spj_awal', 'tanggal_pencairan', 'kolektibilitas', 'total_sisa', 'status', 'is_active', 'lunas_at'])
                     ->when($statusFilter === 'aktif', fn ($loan) => $loan->where('status', PumkPinjaman::STATUS_AKTIF)->where('is_active', true))
                     ->when($statusFilter === 'lunas', fn ($loan) => $loan->where('status', PumkPinjaman::STATUS_LUNAS))
+                    ->when($matchingLoanIds !== null, fn ($loan) => $loan->whereIn('id', $matchingLoanIds))
                     ->latest('tanggal_pencairan')
                     ->latest('id'),
             ])
@@ -66,9 +70,9 @@ class PumkMitraController extends Controller
             })
             ->when(filled($filters['wilayah'] ?? null), fn ($query) => $query->where('wilayah_id', $filters['wilayah']))
             ->when(filled($filters['sektor'] ?? null), fn ($query) => $query->where('sektor_usaha_id', $filters['sektor']))
-            ->when(filled($filters['kolektibilitas'] ?? null), function ($query) use ($filters, $statusFilter): void {
+            ->when($matchingLoanIds !== null, function ($query) use ($matchingLoanIds, $statusFilter): void {
                 $query->whereHas('pinjaman', fn ($pinjaman) => $pinjaman
-                    ->where('kolektibilitas', $filters['kolektibilitas'])
+                    ->whereIn('id', $matchingLoanIds)
                     ->when($statusFilter === 'aktif', fn ($loan) => $loan->where('status', PumkPinjaman::STATUS_AKTIF)->where('is_active', true))
                     ->when($statusFilter === 'lunas', fn ($loan) => $loan->where('status', PumkPinjaman::STATUS_LUNAS)));
             })

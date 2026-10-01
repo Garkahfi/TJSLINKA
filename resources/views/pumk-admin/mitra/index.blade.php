@@ -97,7 +97,7 @@
                     @forelse($mitraList as $mitra)
                         @php
                             $pinjaman = $mitra->pinjaman->first();
-                            $status = $pinjaman?->kolektibilitas;
+                            $status = $selectedCollectibility !== '' ? $selectedCollectibility : $pinjaman?->kolektibilitas;
                         @endphp
                         <tr>
                             <td><strong>{{ $mitra->nama_mitra }}</strong></td>
@@ -110,7 +110,7 @@
                             </td>
                             <td>{{ $pinjaman?->status === 'lunas' ? 'Lunas' : ($pinjaman?->status === 'nonaktif' ? 'Nonaktif' : 'Aktif') }}</td>
                             <td style="text-align:right;font-weight:600">
-                                {{ $pinjaman && $pinjaman->total_sisa !== null ? 'Rp '.number_format((float) $pinjaman->total_sisa, 0, ',', '.') : '—' }}
+                                {{ $pinjaman && $pinjaman->total_sisa !== null ? $formatSummaryRupiah((string) $pinjaman->total_sisa) : '—' }}
                             </td>
                             <td class="actions">
                                 <a href="{{ route('pumk-admin.mitra.show', [$mitra, 'pinjaman' => $pinjaman?->id]) }}" class="pumk-table-action">Lihat Kartu</a>

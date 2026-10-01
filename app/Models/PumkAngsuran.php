@@ -40,9 +40,11 @@ class PumkAngsuran extends Model
     protected static function booted(): void
     {
         static::saving(function (PumkAngsuran $angsuran): void {
-            $angsuran->total = (float) ($angsuran->pokok ?? 0)
-                + (float) ($angsuran->bunga ?? 0)
-                + (float) ($angsuran->denda ?? 0);
+            $angsuran->total = bcadd(bcadd(
+                (string) ($angsuran->pokok ?? '0.00'),
+                (string) ($angsuran->bunga ?? '0.00'),
+                2,
+            ), (string) ($angsuran->denda ?? '0.00'), 2);
         });
     }
 

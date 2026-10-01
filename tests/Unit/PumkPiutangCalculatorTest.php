@@ -8,6 +8,7 @@ use App\Models\PumkPinjaman;
 use App\Models\PumkSaldoAwal;
 use App\Services\Pumk\PiutangCalculator;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -130,6 +131,52 @@ class PumkPiutangCalculatorTest extends TestCase
         $this->assertSame(4, $hasil['bulan_tunggakan']);
         $this->assertSame('kurang_lancar', $hasil['kolektibilitas']);
         $this->assertSame(1, $hasil['jumlah_angsuran_manual_setelah_snapshot']);
+    }
+
+    public function test_decimal_payments_keep_cents_beyond_float_precision(): void
+    {
+        // In-memory models avoid SQLite numeric affinity becoming the subject of this test.
+        $loan = new PumkPinjaman([
+            'pinjaman_pokok' => '9007199254740991.10', 'pinjaman_bunga' => '0.00',
+        ]);
+        $loan->setRelation('saldoAwal', null);
+        $loan->setRelation('angsuran', new Collection([
+            new PumkAngsuran(['pokok' => '9007199254740990.66', 'bunga' => '0.00', 'denda' => '0.00']),
+            new PumkAngsuran(['pokok' => '0.11', 'bunga' => '0.00', 'denda' => '0.00']),
+        ]));
+
+        $result = app(PiutangCalculator::class)->hitungUntukPinjaman($loan);
+
+        $this->assertSame('9007199254740990.77', $result['total_pokok_masuk']);
+        $this->assertSame('0.33', $result['total_sisa']);
+    }
+
+    public function test_one_cent_remainder_crosses_each_collectibility_month_boundary(): void
+    {
+        foreach ([1 => 'kurang_lancar', 6 => 'diragukan', 9 => 'macet'] as $months => $category) {
+            $loan = new PumkPinjaman([
+                'pinjaman_pokok' => '20000000000.00', 'pinjaman_bunga' => '0.00',
+                'nilai_angsuran_bulanan' => '1000000000.00', 'source_updated_at' => '2026-07-31 12:00:00',
+                'baseline_sumber' => [
+                    'sisa_pokok' => '20000000000.00', 'sisa_bunga' => '0.00',
+                    'bulan_tunggakan' => $months, 'nilai_tunggakan' => bcadd(bcmul((string) $months, '1000000000', 2), '0.02', 2),
+                    'kolektibilitas' => 'lancar', 'total_pokok_masuk' => '0.00',
+                    'total_bunga_masuk' => '0.00', 'total_denda_masuk' => '0.00',
+                ],
+            ]);
+            $loan->setRelation('saldoAwal', null);
+            $loan->setRelation('angsuran', new Collection([
+                new PumkAngsuran([
+                    'pokok' => '0.01', 'bunga' => '0.00', 'denda' => '0.00',
+                    'created_at' => '2026-08-01 12:00:00',
+                ]),
+            ]));
+
+            $result = app(PiutangCalculator::class)->hitungUntukPinjaman($loan);
+
+            $this->assertSame($months + 1, $result['bulan_tunggakan']);
+            $this->assertSame($category, $result['kolektibilitas']);
+        }
     }
 
     private function pinjaman(array $overrides): PumkPinjaman
