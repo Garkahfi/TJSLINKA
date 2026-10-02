@@ -580,6 +580,19 @@ final class PumkImportService
         } else {
             $this->calculator->simpanBaselineSumber($pinjaman, replace: true);
         }
+        // Simpan input rumus dari satu sheet resmi di luar kolom DECIMAL(?,2).
+        // Khusus AK, pecahan sub-sen harus bertahan agar AQ/AR berjalan akurat.
+        $pinjaman->forceFill(['baseline_sumber' => array_merge($pinjaman->baseline_sumber ?? [], [
+            'formula_sumber' => [
+                'mulai_angsuran' => $mulaiAngsuran?->toDateString(),
+                'angsuran_bulanan' => $this->decimal($cells['AK'] ?? null),
+                'total_kewajiban' => $this->decimal($cells['AG'] ?? null),
+                'jumlah_jatuh_tempo' => $this->integer($cells['AP'] ?? null),
+                'jatuh_tempo_nominal' => $this->money($cells['AQ'] ?? null, 'AQ', $warnings),
+                'total_pokok_bunga_masuk' => $this->money($cells['AN'] ?? null, 'AN', $warnings),
+                'tanggal_acuan' => $tanggalAcuan->toDateString(),
+            ],
+        ])])->saveQuietly();
         $comparisonDifferences = $this->compareSourceWithCalculator($pinjaman->fresh(), $cells);
         $warnings = array_merge($warnings, $comparisonDifferences);
         $this->calculator->sinkronkanCache($pinjaman);

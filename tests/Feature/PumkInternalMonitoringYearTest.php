@@ -298,6 +298,50 @@ class PumkInternalMonitoringYearTest extends TestCase
         $this->assertSame(1, $current['payment_count']);
     }
 
+    public function test_imported_monitoring_uses_running_card_category_and_net_payment_delta(): void
+    {
+        $mitra = PumkMitra::create([
+            'nama_mitra' => 'Mitra Rumus', 'source_key' => hash('sha256', 'rumus-mitra'),
+        ]);
+        $loan = PumkPinjaman::create([
+            'mitra_id' => $mitra->id, 'source_key' => hash('sha256', 'rumus-loan'),
+            'tanggal_pencairan' => '2026-07-01', 'source_updated_at' => '2026-07-31 23:59:59',
+            'pinjaman_pokok' => '1200000.00', 'pinjaman_bunga' => '0.00',
+            'mulai_angsuran' => '2026-07-01', 'nilai_angsuran_bulanan' => '100000.00',
+            'kolektibilitas' => 'lancar', 'is_active' => true,
+            'baseline_sumber' => [
+                'sisa_pokok' => '1200000.00', 'sisa_bunga' => '0.00',
+                'total_pokok_masuk' => '0.00', 'total_bunga_masuk' => '0.00',
+                'formula_sumber' => [
+                    'mulai_angsuran' => '2026-07-01', 'angsuran_bulanan' => '100000.00',
+                    'total_kewajiban' => '1200000.00', 'tanggal_acuan' => '2026-07-31',
+                ],
+            ],
+        ]);
+        $service = app(PumkInternalMonitoringService::class);
+        $july = $service->positionForCapture(CarbonImmutable::parse('2026-07-31'))['rows'][0];
+        $august = $service->positionForCapture(CarbonImmutable::parse('2026-08-31'))['rows'][0];
+        $this->assertSame('Lancar', $july['kolektibilitas']);
+        $this->assertSame('Kurang Lancar', $august['kolektibilitas']);
+        $this->assertSame('1200000.00', $august['total']);
+
+        $this->payment($loan, '2026-08-01', 100_000);
+        $paid = $service->positionForCapture(CarbonImmutable::parse('2026-08-31'))['rows'][0];
+        $this->assertSame('Lancar', $paid['kolektibilitas']);
+        $this->assertSame('1100000.00', $paid['total']);
+        $this->assertSame('calculated', $paid['classification_sources']['kolektibilitas']);
+
+        // Workbook revisi kini telah mencakup pembayaran yang sama; jangan
+        // menguranginya lagi hanya karena transaksi manual masih ada.
+        $baseline = $loan->fresh()->baseline_sumber;
+        $baseline['sisa_pokok'] = '1100000.00';
+        $baseline['total_pokok_masuk'] = '100000.00';
+        $loan->forceFill(['baseline_sumber' => $baseline])->saveQuietly();
+        $afterReimport = $service->positionForCapture(CarbonImmutable::parse('2026-08-31'))['rows'][0];
+        $this->assertSame('1100000.00', $afterReimport['total']);
+        $this->assertSame('Lancar', $afterReimport['kolektibilitas']);
+    }
+
     public function test_months_without_evidence_remain_null_in_trend_and_reload_does_not_advance_source_time(): void
     {
         Carbon::setTestNow(Carbon::parse('2027-02-10 12:00:00', 'Asia/Jakarta'));

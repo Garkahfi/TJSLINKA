@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -113,8 +114,11 @@ class PumkPinjaman extends Model
             }
 
             if ($pinjaman->pinjaman_pokok !== null || $pinjaman->pinjaman_bunga !== null) {
-                $pinjaman->total_pinjaman = (float) ($pinjaman->pinjaman_pokok ?? 0)
-                    + (float) ($pinjaman->pinjaman_bunga ?? 0);
+                $pinjaman->total_pinjaman = bcadd(
+                    (string) ($pinjaman->pinjaman_pokok ?? '0.00'),
+                    (string) ($pinjaman->pinjaman_bunga ?? '0.00'),
+                    2,
+                );
             } else {
                 $pinjaman->total_pinjaman = null;
             }
@@ -141,7 +145,7 @@ class PumkPinjaman extends Model
         return $this->hasMany(PumkLoanClosure::class, 'pinjaman_id');
     }
 
-    public function isClosedAt(\Carbon\CarbonImmutable $asOf): bool
+    public function isClosedAt(CarbonImmutable $asOf): bool
     {
         $date = $asOf->setTimezone('Asia/Jakarta')->toDateString();
         foreach ($this->closures as $closure) {

@@ -10,6 +10,7 @@ use App\Services\Monitoring\PumkClassificationService;
 use App\Services\Monitoring\PumkInternalMonitoringService;
 use App\Services\Monitoring\PumkMonitoringCaptureService;
 use App\Services\Pumk\PiutangCalculator;
+use App\Services\Pumk\PumkCollectibilitySummaryService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -46,10 +47,36 @@ class PumkArchiveWorkflowTest extends TestCase
         $this->assertSame('-2143279.00', $loan->fresh()->lunas_total_saldo);
         $this->assertSame('kelebihan_bayar', $loan->fresh()->lunas_reason);
         $this->assertSame(1, $loan->closures()->count());
+        $closedCategory = $loan->fresh()->kolektibilitas;
+        $this->assertSame($closedCategory, $loan->closures()->firstOrFail()->settlement_snapshot['kolektibilitas']);
+        $loan->update(['kolektibilitas' => 'macet']);
+        $position = app(PumkCollectibilitySummaryService::class)->positionForLoan($loan->fresh());
+        $this->assertSame(PumkCollectibilitySummaryService::normalizeCategory($closedCategory), $position['category']);
+        $this->assertSame('-2143279.00', $position['balance']);
         $this->assertDatabaseCount('pumk_angsuran', 1);
         $report = app(PumkInternalMonitoringService::class)->report(2026);
         $this->assertSame(1, $report['closed_loans']);
         $this->assertSame(0, $report['negative_loans']);
+    }
+
+    public function test_closure_preserves_category_calculated_at_closing_date_not_stale_cache(): void
+    {
+        [$user, $mitra, $loan] = $this->fixture(75000);
+        $loan->update([
+            'mulai_angsuran' => '2026-01-01',
+            'selesai_angsuran' => '2026-12-01',
+            'nilai_angsuran_bulanan' => '10000.00',
+        ]);
+        $this->assertNull($loan->fresh()->kolektibilitas);
+
+        $this->actingAs($user, 'pumk')->post(route('pumk-admin.mitra.pinjaman.lunas', [$mitra, $loan]), [
+            'lunas_note' => 'Selisih sesuai batas dan jadwal sudah ditinjau.',
+        ])->assertSessionHasNoErrors();
+
+        $closed = $loan->fresh();
+        $this->assertSame('diragukan', $closed->closures()->firstOrFail()->settlement_snapshot['kolektibilitas']);
+        $this->assertSame('diragukan', app(PumkCollectibilitySummaryService::class)->positionForLoan($closed)['category']);
+        $this->assertSame('75000.00', $closed->lunas_total_saldo);
     }
 
     public function test_one_hundred_thousand_is_inclusive_and_larger_balance_is_rejected(): void

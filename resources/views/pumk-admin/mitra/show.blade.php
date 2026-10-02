@@ -10,7 +10,8 @@
             'diragukan' => 'Diragukan',
             'macet' => 'Macet',
         ];
-        $status = $calculation['kolektibilitas'] ?? $pinjaman?->kolektibilitas;
+        $status = array_key_exists('kolektibilitas', $calculation ?? [])
+            ? $calculation['kolektibilitas'] : $pinjaman?->kolektibilitas;
         $isRescheduled = filled($pinjaman?->reschedule_ke1)
             || filled($pinjaman?->reschedule_ke2)
             || filled($pinjaman?->reschedule_ke3)
@@ -190,6 +191,9 @@
                 <div class="receivable-meta"><strong>{{ $kartu['periode_label'] }}</strong></div>
 
                 @if($kartu['jadwal_error'])<div class="receivable-warning">{{ $kartu['jadwal_error'] }}</div>@endif
+                @if($calculation['menggunakan_baseline_sumber'] ?? false)
+                    <div class="receivable-warning">{{ $calculation['catatan_perhitungan'] ?? 'Posisi dihitung dari jadwal dan pembayaran yang tercatat.' }}</div>
+                @endif
 
                 <div class="receivable-table-wrap">
                     <table class="receivable-table">

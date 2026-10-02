@@ -7,16 +7,17 @@ use App\Models\PumkPinjaman;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
+use LogicException;
 
 class PiutangCalculator
 {
+    public function __construct(private readonly PumkCollectibilityFormula $collectibilityFormula) {}
+
     /**
      * Menghasilkan angka kartu piutang tanpa mengubah nilai sumber Excel.
      *
-     * Untuk pinjaman hasil impor, bulan tunggakan dan kolektibilitas dari
-     * workbook dipertahankan sebagai baseline karena rumus resminya masih
-     * menunggu validasi bisnis. Pinjaman yang dibuat manual memakai estimasi
-     * transparan berdasarkan jadwal dan pembayaran yang tercatat.
+     * Snapshot workbook adalah baseline saldo/pembayaran. Posisi kolektibilitas
+     * dihitung kembali dari jadwal sheet resmi pada tanggal yang diminta.
      *
      * @return array<string, int|string|bool|null>
      */
@@ -26,18 +27,34 @@ class PiutangCalculator
     ): array {
         $pinjaman->loadMissing(['saldoAwal', 'angsuran']);
 
+        $asOf = $tanggalAcuan === null
+            ? CarbonImmutable::today()
+            : CarbonImmutable::instance($tanggalAcuan);
+        if ($tanggalAcuan !== null && $pinjaman->source_updated_at !== null
+            && $asOf->toDateString() < $pinjaman->source_updated_at->toDateString()) {
+            throw new LogicException('Posisi sebelum snapshot impor belum dapat direkonstruksi dari data yang tersedia.');
+        }
+        $effectivePayments = $pinjaman->angsuran->filter(
+            fn ($item) => $item->periode === null
+                // Periode adalah bulan bisnis, bukan timestamp. Bandingkan YYYY-MM
+                // agar cast UTC dari DB tidak bergeser melampaui awal bulan WIB.
+                || $item->periode->format('Y-m') <= $asOf->format('Y-m'),
+        );
+
         $saldoAwal = $pinjaman->saldoAwal;
+        $openingIncluded = $saldoAwal !== null && $saldoAwal->cutoff_date !== null
+            && $saldoAwal->cutoff_date->toDateString() <= $asOf->toDateString();
         $pokokMasuk = $this->add(
-            $saldoAwal?->pokok_masuk,
-            $pinjaman->angsuran->sum(fn ($item) => (float) $item->pokok),
+            $openingIncluded ? $saldoAwal->pokok_masuk : null,
+            ...$effectivePayments->pluck('pokok')->all(),
         );
         $bungaMasuk = $this->add(
-            $saldoAwal?->bunga_masuk,
-            $pinjaman->angsuran->sum(fn ($item) => (float) $item->bunga),
+            $openingIncluded ? $saldoAwal->bunga_masuk : null,
+            ...$effectivePayments->pluck('bunga')->all(),
         );
         $dendaMasuk = $this->add(
-            $saldoAwal?->denda,
-            $pinjaman->angsuran->sum(fn ($item) => (float) $item->denda),
+            $openingIncluded ? $saldoAwal->denda : null,
+            ...$effectivePayments->pluck('denda')->all(),
         );
 
         $sisaPokokHitung = $this->sub($pinjaman->pinjaman_pokok, $pokokMasuk);
@@ -48,51 +65,53 @@ class PiutangCalculator
         // Angsuran manual yang dicatat sesudah snapshot harus tetap tercermin di
         // kartu piutang tanpa menimpa baseline historis tersebut.
         $angsuranManualSesudahSnapshot = $hasilImpor
-            ? $pinjaman->angsuran->filter(
+            ? $effectivePayments->filter(
                 fn ($item) => $item->batch_id === null
                     && $item->created_at !== null
                     && $item->created_at->greaterThan($pinjaman->source_updated_at),
             )
             : collect();
         $baseline = $pinjaman->baseline_sumber ?? $this->baselineSumber($pinjaman);
-        $pokokManualBaru = $this->sub($pokokMasuk, $baseline['total_pokok_masuk']);
-        $bungaManualBaru = $this->sub($bungaMasuk, $baseline['total_bunga_masuk']);
-        $dendaManualBaru = $this->sub($dendaMasuk, $baseline['total_denda_masuk']);
-        $hasAdjustment = bccomp($pokokManualBaru, '0', 2) !== 0
-            || bccomp($bungaManualBaru, '0', 2) !== 0
-            || bccomp($dendaManualBaru, '0', 2) !== 0;
-
-        $sisaPokok = $hasilImpor && $baseline['sisa_pokok'] !== null
+        $pokokManualBaru = $this->sub($pokokMasuk, $baseline['total_pokok_masuk'] ?? null);
+        $bungaManualBaru = $this->sub($bungaMasuk, $baseline['total_bunga_masuk'] ?? null);
+        $sisaPokok = $hasilImpor && ($baseline['sisa_pokok'] ?? null) !== null
             ? $this->sub($baseline['sisa_pokok'], $pokokManualBaru)
             : $sisaPokokHitung;
-        $sisaBunga = $hasilImpor && $baseline['sisa_bunga'] !== null
+        $sisaBunga = $hasilImpor && ($baseline['sisa_bunga'] ?? null) !== null
             ? $this->sub($baseline['sisa_bunga'], $bungaManualBaru)
             : $sisaBungaHitung;
 
-        if ($hasilImpor && $baseline['bulan_tunggakan'] !== null) {
-            $nilaiTunggakan = $this->nonNegative(bcsub(
-                $this->money($baseline['nilai_tunggakan']),
-                $this->add($pokokManualBaru, $bungaManualBaru, $dendaManualBaru),
-                2,
-            ));
-            $bulanTunggakan = $this->adjustedImportedArrearsMonths(
-                (int) $baseline['bulan_tunggakan'],
-                $nilaiTunggakan,
-                $pinjaman->nilai_angsuran_bulanan,
-                $hasAdjustment,
-            );
-            $kolektibilitas = $hasAdjustment
-                ? $this->kolektibilitasDari($bulanTunggakan)
-                : $baseline['kolektibilitas'];
-            $menggunakanBaselineSumber = true;
-        } else {
-            [$bulanTunggakan, $nilaiTunggakan] = $this->estimasiTunggakan(
-                $pinjaman,
+        if ($hasilImpor) {
+            $formulaSumber = $baseline['formula_sumber'] ?? [];
+            $mulaiSumber = isset($formulaSumber['mulai_angsuran'])
+                ? CarbonImmutable::parse($formulaSumber['mulai_angsuran'])
+                : $pinjaman->mulai_angsuran;
+            $schedule = $this->collectibilityFormula->calculate(
+                $mulaiSumber,
+                $formulaSumber['angsuran_bulanan'] ?? $pinjaman->nilai_angsuran_bulanan,
+                $formulaSumber['total_kewajiban'] ?? $pinjaman->total_pinjaman,
                 $pokokMasuk,
                 $bungaMasuk,
-                $tanggalAcuan ?? CarbonImmutable::today(),
+                $asOf,
             );
-            $kolektibilitas = $this->kolektibilitasDari($bulanTunggakan);
+            $bulanTunggakan = $schedule['bulan_tunggakan'] ?? null;
+            $nilaiTunggakan = $schedule['nilai_tunggakan'] ?? null;
+            $kolektibilitas = $schedule['kolektibilitas'] ?? null;
+            $menggunakanBaselineSumber = true;
+        } else {
+            $schedule = $this->collectibilityFormula->calculate(
+                $pinjaman->mulai_angsuran,
+                $pinjaman->nilai_angsuran_bulanan,
+                $pinjaman->pinjaman_pokok !== null && $pinjaman->pinjaman_bunga !== null
+                    ? $this->add($pinjaman->pinjaman_pokok, $pinjaman->pinjaman_bunga)
+                    : null,
+                $pokokMasuk,
+                $bungaMasuk,
+                $asOf,
+            );
+            $bulanTunggakan = $schedule['bulan_tunggakan'] ?? null;
+            $nilaiTunggakan = $schedule['nilai_tunggakan'] ?? null;
+            $kolektibilitas = $schedule['kolektibilitas'] ?? null;
             $menggunakanBaselineSumber = false;
         }
 
@@ -107,13 +126,21 @@ class PiutangCalculator
             'bulan_tunggakan' => $bulanTunggakan,
             'nilai_tunggakan' => $nilaiTunggakan,
             'kolektibilitas' => $kolektibilitas,
+            'jumlah_jatuh_tempo' => $schedule['jumlah_jatuh_tempo'] ?? null,
+            'jatuh_tempo_nominal' => $schedule['jatuh_tempo_nominal'] ?? null,
+            'tunggakan_mentah' => $schedule['tunggakan_mentah'] ?? null,
+            'tanggal_acuan' => $asOf->toDateString(),
             'menggunakan_baseline_sumber' => $menggunakanBaselineSumber,
             'jumlah_angsuran_manual_setelah_snapshot' => $angsuranManualSesudahSnapshot->count(),
             'catatan_perhitungan' => $menggunakanBaselineSumber
-                ? ($hasAdjustment
-                    ? 'Saldo sumber disesuaikan dengan perubahan pembayaran yang tercatat.'
-                    : 'Tunggakan dan kolektibilitas mengikuti baseline workbook sumber.')
-                : 'Tunggakan merupakan estimasi sistem sampai rumus bisnis resmi disahkan.',
+                ? ($schedule === null
+                    ? 'Jadwal atau kewajiban sumber belum lengkap; kolektibilitas posisi ini belum dapat dinilai.'
+                    : (isset($baseline['formula_sumber'])
+                        ? 'Saldo mengikuti baseline dan perubahan bersih pembayaran; kolektibilitas dihitung dari jadwal sheet resmi.'
+                        : 'Saldo mengikuti baseline dan perubahan bersih pembayaran; presisi jadwal sumber perlu dilengkapi untuk verifikasi penuh.'))
+                : ($schedule === null
+                    ? 'Kolektibilitas belum dapat dinilai karena data jadwal atau kewajiban tidak lengkap.'
+                    : 'Kolektibilitas dihitung dari jadwal dan pokok+bunga yang tercatat.'),
         ];
     }
 
@@ -213,92 +240,11 @@ class PiutangCalculator
             || $item->created_at->lessThanOrEqualTo($pinjaman->source_updated_at));
     }
 
-    public function kolektibilitasDari(int $bulanTunggakan): string
-    {
-        return match (true) {
-            $bulanTunggakan > 9 => 'macet',
-            $bulanTunggakan > 6 => 'diragukan',
-            $bulanTunggakan > 1 => 'kurang_lancar',
-            default => 'lancar',
-        };
-    }
-
-    private function adjustedImportedArrearsMonths(
-        int $baselineMonths,
-        string $adjustedArrearsValue,
-        mixed $monthlyInstallment,
-        bool $hasManualAdjustment,
-    ): int {
-        if (! $hasManualAdjustment) {
-            return $baselineMonths;
-        }
-
-        $installment = $this->money($monthlyInstallment);
-        if (bccomp($adjustedArrearsValue, '0.00', 2) <= 0) {
-            return 0;
-        }
-
-        if (bccomp($installment, '0.00', 2) <= 0) {
-            return $baselineMonths;
-        }
-
-        return (int) ceil((float) bcdiv($adjustedArrearsValue, $installment, 6));
-    }
-
-    /**
-     * @return array{0: int, 1: string}
-     */
-    private function estimasiTunggakan(
-        PumkPinjaman $pinjaman,
-        string $pokokMasuk,
-        string $bungaMasuk,
-        CarbonInterface $tanggalAcuan,
-    ): array {
-        if ($pinjaman->mulai_angsuran === null || $pinjaman->nilai_angsuran_bulanan === null) {
-            return [0, '0.00'];
-        }
-
-        $angsuranBulanan = $this->money($pinjaman->nilai_angsuran_bulanan);
-
-        if (bccomp($angsuranBulanan, '0.00', 2) <= 0) {
-            return [0, '0.00'];
-        }
-
-        $mulai = CarbonImmutable::instance($pinjaman->mulai_angsuran)->startOfMonth();
-        $acuan = CarbonImmutable::instance($tanggalAcuan)->startOfMonth();
-
-        if ($acuan->lessThan($mulai)) {
-            return [0, '0.00'];
-        }
-
-        if ($pinjaman->selesai_angsuran !== null) {
-            $selesai = CarbonImmutable::instance($pinjaman->selesai_angsuran)->startOfMonth();
-            $acuan = $acuan->min($selesai);
-        }
-
-        $bulanBerjalan = $mulai->diffInMonths($acuan) + 1;
-        $seharusnyaMasuk = bcmul($angsuranBulanan, (string) $bulanBerjalan, 2);
-        $totalPinjaman = $this->money($pinjaman->total_pinjaman);
-
-        if (bccomp($totalPinjaman, '0.00', 2) > 0 && bccomp($seharusnyaMasuk, $totalPinjaman, 2) > 0) {
-            $seharusnyaMasuk = $totalPinjaman;
-        }
-
-        $aktualMasuk = $this->add($pokokMasuk, $bungaMasuk);
-        $nilaiTunggakan = bcsub($seharusnyaMasuk, $aktualMasuk, 2);
-
-        if (bccomp($nilaiTunggakan, '0.00', 2) <= 0) {
-            return [0, '0.00'];
-        }
-
-        $bulanTunggakan = (int) ceil((float) bcdiv($nilaiTunggakan, $angsuranBulanan, 6));
-
-        return [$bulanTunggakan, $nilaiTunggakan];
-    }
-
     private function money(mixed $value): string
     {
-        return number_format((float) ($value ?? 0), 2, '.', '');
+        // Model casts and import baselines already contain decimal strings.
+        // Converting them to float loses cents on large balances.
+        return bcadd((string) ($value ?? '0.00'), '0.00', 2);
     }
 
     private function add(mixed ...$values): string
@@ -315,10 +261,5 @@ class PiutangCalculator
     private function sub(mixed $left, mixed $right): string
     {
         return bcsub($this->money($left), $this->money($right), 2);
-    }
-
-    private function nonNegative(string $value): string
-    {
-        return bccomp($value, '0.00', 2) < 0 ? '0.00' : $value;
     }
 }
