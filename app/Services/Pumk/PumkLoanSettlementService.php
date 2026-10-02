@@ -38,6 +38,7 @@ class PumkLoanSettlementService
             'saldo_pokok' => $known ? (string) $card['sisa_pokok'] : null,
             'saldo_bunga' => $known ? (string) $card['sisa_bunga'] : null,
             'total' => $known ? (string) $card['total_sisa'] : null,
+            'kolektibilitas' => $card['kolektibilitas'],
             'as_of_date' => $at->setTimezone('Asia/Jakarta')->toDateString(),
             'source_kind' => 'kartu_piutang', 'reason_code' => null,
             'eligible' => false, 'reason' => null, 'tolerance' => $tolerance,
@@ -105,10 +106,10 @@ class PumkLoanSettlementService
             ])->save();
             PumkLoanClosure::create([
                 'pinjaman_id' => $loan->id, 'closed_at' => $closedAt, 'closed_by' => $actorId,
-                'settlement_snapshot' => $loan->only([
+                'settlement_snapshot' => array_merge($loan->only([
                     'lunas_reason', 'lunas_note', 'lunas_saldo_pokok', 'lunas_saldo_bunga',
-                    'lunas_total_saldo', 'lunas_tolerance_applied', 'kolektibilitas',
-                ]),
+                    'lunas_total_saldo', 'lunas_tolerance_applied',
+                ]), ['kolektibilitas' => $decision['kolektibilitas']]),
             ]);
             $this->activity->record('mark_loan_paid', 'pumk_internal', 'Menandai pinjaman sebagai lunas.', $loan, metadata: [
                 'reason' => $decision['reason'],

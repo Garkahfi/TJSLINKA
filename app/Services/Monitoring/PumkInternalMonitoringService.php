@@ -4,6 +4,7 @@ namespace App\Services\Monitoring;
 
 use App\Models\PumkMonitoringReport;
 use App\Models\PumkPinjaman;
+use App\Services\Pumk\PiutangCalculator;
 use App\Services\Pumk\PumkLoanBalanceResolver;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -18,6 +19,7 @@ class PumkInternalMonitoringService
     public function __construct(
         private readonly PumkLoanBalanceResolver $balances,
         private readonly PumkClassificationService $classifications,
+        private readonly PiutangCalculator $calculator,
     ) {}
 
     private const MONTHS = [
@@ -234,6 +236,25 @@ class PumkInternalMonitoringService
             $sector = $this->classifications->resolve($loan, 'sektor', $asOf, $recorded, $snapshotDate);
             $region = $this->classifications->resolve($loan, 'wilayah', $asOf, $recorded, $snapshotDate);
             $quality = $this->classifications->resolve($loan, 'kolektibilitas', $asOf, $recorded, $snapshotDate);
+            if ($loan->source_updated_at !== null
+                && $loan->source_updated_at->toDateString() <= $asOf->toDateString()) {
+                $calculated = $this->calculator->hitungUntukPinjaman($loan, $asOf);
+                $value = $calculated['kolektibilitas'];
+                $hasRawSourceFormula = isset($loan->baseline_sumber['formula_sumber']);
+                $quality = [
+                    'value' => $value === null ? null : match ($value) {
+                        'lancar' => 'Lancar',
+                        'kurang_lancar' => 'Kurang Lancar',
+                        'diragukan' => 'Diragukan',
+                        'macet' => 'Macet',
+                    },
+                    'source_kind' => 'calculated',
+                    'reason_code' => $value === null ? 'schedule_missing'
+                        : ($hasRawSourceFormula ? null : 'source_formula_precision_pending'),
+                    'limited' => $value === null || ! $hasRawSourceFormula,
+                    'effective_date' => $asOf->toDateString(),
+                ];
+            }
             $province = filled($region['value']) ? $this->provinceForRegion($region['value']) : null;
             $rows[] = [
                 'pinjaman_id' => $loan->id,

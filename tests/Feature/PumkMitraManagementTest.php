@@ -31,7 +31,13 @@ class PumkMitraManagementTest extends TestCase
         $this->actingAs($this->pumkAdmin(), 'pumk');
         [$wilayah, $sektor] = $this->references();
         $matching = $this->mitra('Mitra Filter Sesuai', $wilayah, $sektor, '081200001111');
-        $this->loan($matching, 'lancar', 700000);
+        $this->loan($matching, 'lancar', 700000, [
+            'pinjaman_pokok' => 700000,
+            'pinjaman_bunga' => 0,
+            'mulai_angsuran' => '2027-01-01',
+            'selesai_angsuran' => '2027-07-01',
+            'nilai_angsuran_bulanan' => 100000,
+        ]);
 
         $otherRegion = PumkWilayah::create(['nama' => 'Wilayah Lain', 'slug' => 'wilayah-lain']);
         $other = $this->mitra('Mitra Tidak Sesuai', $otherRegion, $sektor, '081299999999');
@@ -226,7 +232,10 @@ class PumkMitraManagementTest extends TestCase
         $this->assertSame('BKM/FORMAT/002', $angsuran->nomor_bukti);
         $this->assertSame('400000.00', $angsuran->pokok);
         $this->assertSame('10000.00', $angsuran->bunga);
-        $this->assertSame('690000.00', $pinjaman->fresh()->total_sisa);
+        // Pada 31 Januari, angsuran berperiode Februari belum masuk posisi as-of.
+        $this->assertSame('1100000.00', $pinjaman->fresh()->total_sisa);
+        $this->travelTo(Carbon::parse('2026-02-01 12:00:00'));
+        $this->assertSame('690000.00', app(PiutangCalculator::class)->hitungUntukPinjaman($pinjaman->fresh())['total_sisa']);
     }
 
     public function test_imported_installment_cannot_be_edited_from_the_manual_card(): void

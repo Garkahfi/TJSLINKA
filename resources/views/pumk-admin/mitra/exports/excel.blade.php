@@ -4,7 +4,8 @@
     $xmlDeclaration = '<'.'?xml version="1.0" encoding="UTF-8"?'.'>';
     $excelDeclaration = '<'.'?mso-application progid="Excel.Sheet"?'.'>';
     $statusLabels = ['lancar' => 'Lancar', 'kurang_lancar' => 'Kurang Lancar', 'diragukan' => 'Diragukan', 'macet' => 'Macet'];
-    $status = $kartu['calculation']['kolektibilitas'] ?? $pinjaman->kolektibilitas;
+    $status = array_key_exists('kolektibilitas', $kartu['calculation'] ?? [])
+        ? $kartu['calculation']['kolektibilitas'] : $pinjaman->kolektibilitas;
     $isRescheduled = filled($pinjaman->reschedule_ke1) || filled($pinjaman->reschedule_ke2) || filled($pinjaman->reschedule_ke3) || filled($pinjaman->reschedule_ke4);
 @endphp
 {!! $xmlDeclaration !!}

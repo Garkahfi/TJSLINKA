@@ -10,9 +10,9 @@ use RuntimeException;
 
 class PumkAuditPiutang extends Command
 {
-    protected $signature = 'pumk:audit-piutang {file : Workbook sumber SPJ} {--mitra= : Batasi ID mitra} {--json : Tampilkan bukti rinci JSON}';
+    protected $signature = 'pumk:audit-piutang {file : Workbook sumber PUMK resmi} {--mitra= : Batasi ID mitra} {--json : Tampilkan bukti rinci JSON}';
 
-    protected $description = 'Bandingkan sumber SPJ, kartu, cache, pembayaran, dan saldo penutupan tanpa mengubah database';
+    protected $description = 'Bandingkan sheet resmi PUMK, kartu, cache, pembayaran, dan saldo penutupan tanpa mengubah database';
 
     public function handle(PumkXlsxReader $reader, PumkPiutangReconciliationService $audit): int
     {

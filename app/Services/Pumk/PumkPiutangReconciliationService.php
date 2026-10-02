@@ -39,6 +39,14 @@ class PumkPiutangReconciliationService
             $components = $principal !== null && $interest !== null ? bcadd($principal, $interest, 2) : null;
             $sources[$key] = [
                 'source_no' => (int) $no, 'worksheet_row' => $row['worksheet_row'],
+                'angsuran_bulanan_ak' => $cells['AK'] ?? null,
+                'jatuh_tempo_bulan_ap' => $cells['AP'] ?? null,
+                'jatuh_tempo_nominal_aq' => $this->importer->sourceMoney($cells['AQ'] ?? null),
+                'pokok_masuk_al' => $this->importer->sourceMoney($cells['AL'] ?? null),
+                'bunga_masuk_am' => $this->importer->sourceMoney($cells['AM'] ?? null),
+                'pokok_bunga_masuk_an' => $this->importer->sourceMoney($cells['AN'] ?? null),
+                'tunggakan_bulan_ar' => $cells['AR'] ?? null,
+                'tunggakan_dibulatkan_as' => $this->importer->sourceMoney($cells['AS'] ?? null),
                 'category' => PumkCollectibilitySummaryService::normalizeCategory($cells['AT'] ?? null),
                 'category_raw' => $cells['AT'] ?? null,
                 'principal' => $principal, 'interest' => $interest, 'total_aw' => $total,
@@ -60,8 +68,7 @@ class PumkPiutangReconciliationService
             }
             $card = $this->calculator->hitungUntukPinjaman($loan);
             $position = $this->summary->positionForLoan($loan);
-            $included = ($loan->status === PumkPinjaman::STATUS_AKTIF && $loan->is_active)
-                || $loan->status === PumkPinjaman::STATUS_LUNAS;
+            $included = $this->summary->isIncluded($loan);
             $closure = $loan->closures->whereNull('reopened_at')->sortByDesc('id')->first();
             $baseline = $loan->baseline_sumber;
             $delta = [];
@@ -72,6 +79,9 @@ class PumkPiutangReconciliationService
             $flags = [];
             if ($source === null) {
                 $flags[] = 'not_in_workbook';
+            }
+            if (in_array($loan->source_key, config('pumk.recap_excluded_source_keys', []), true)) {
+                $flags[] = 'excluded_verified_dummy';
             }
             if ($position['balance'] === null) {
                 $flags[] = 'balance_unproven';
@@ -109,6 +119,9 @@ class PumkPiutangReconciliationService
                     'id' => $payment->id, 'periode' => $payment->periode?->toDateString(),
                     'pokok' => $payment->pokok, 'bunga' => $payment->bunga, 'denda' => $payment->denda,
                     'batch_id' => $payment->batch_id,
+                    'created_by' => $payment->created_by,
+                    'has_receipt_reference' => filled($payment->nomor_bukti),
+                    'has_payment_proof' => filled($payment->bukti_pembayaran_path),
                     'created_at' => $payment->created_at?->toIso8601String(),
                     'updated_at' => $payment->updated_at?->toIso8601String(),
                 ])->values()->all(),

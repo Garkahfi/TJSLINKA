@@ -264,12 +264,12 @@ class PumkImportServiceTest extends TestCase
         $this->assertSame(2026, $pinjaman->tahun_pencairan);
         $this->assertSame('1000000.00', $pinjaman->pinjaman_pokok);
         $this->assertSame('100000.00', $pinjaman->pinjaman_bunga);
-        $this->assertSame('lancar', $pinjaman->kolektibilitas);
+        $this->assertSame('kurang_lancar', $pinjaman->kolektibilitas);
         $qualityHistory = PumkClassificationHistory::query()
             ->where('pinjaman_id', $pinjaman->id)->where('attribute', 'kolektibilitas')->firstOrFail();
         $sectorHistory = PumkClassificationHistory::query()
             ->where('mitra_id', $pinjaman->mitra_id)->where('attribute', 'sektor')->firstOrFail();
-        $this->assertSame('lancar', $qualityHistory->value);
+        $this->assertSame('kurang_lancar', $qualityHistory->value);
         $this->assertSame('import', $qualityHistory->source_kind);
         $this->assertSame('2026-07-31', $qualityHistory->effective_from->toDateString());
         $this->assertSame('import', $sectorHistory->source_kind);
@@ -277,6 +277,25 @@ class PumkImportServiceTest extends TestCase
         $this->assertSame([], $result['comparison_differences']);
         $this->assertNotContains('missing_reschedule_ke2', $result['warnings']);
         $this->assertNotContains('missing_reschedule_ke3', $result['warnings']);
+    }
+
+    public function test_import_preserves_raw_installment_for_official_sheet_formula(): void
+    {
+        $cells = $this->validCells();
+        $cells['AK'] = '100000.009';
+        $cells['AQ'] = '700000.06';
+        $this->invokeImportRow($cells, $this->batch('formula-presisi.xlsx'));
+
+        $loan = PumkPinjaman::query()->firstOrFail();
+        $this->assertSame('100000.00', $loan->nilai_angsuran_bulanan);
+        $this->assertSame('100000.009', $loan->baseline_sumber['formula_sumber']['angsuran_bulanan']);
+        $this->assertSame('700000.06', $loan->baseline_sumber['formula_sumber']['jatuh_tempo_nominal']);
+        $result = app(PiutangCalculator::class)->hitungUntukPinjaman(
+            $loan, CarbonImmutable::parse('2026-07-31'),
+        );
+        $this->assertSame('700000.06', $result['jatuh_tempo_nominal']);
+        $this->assertSame(3, $result['bulan_tunggakan']);
+        $this->assertSame('kurang_lancar', $result['kolektibilitas']);
     }
 
     public function test_blank_source_values_do_not_erase_existing_manual_completions(): void
@@ -540,9 +559,11 @@ class PumkImportServiceTest extends TestCase
             'AL' => '350000',
             'AM' => '35000',
             'AN' => '385000',
-            'AR' => '1',
-            'AS' => '100000',
-            'AT' => 'Lancar',
+            'AP' => '7',
+            'AQ' => '700000',
+            'AR' => '3',
+            'AS' => '300000',
+            'AT' => 'Kurang Lancar',
             'AU' => '650000',
             'AV' => '65000',
             'AW' => '715000',

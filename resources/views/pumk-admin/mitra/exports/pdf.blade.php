@@ -10,7 +10,8 @@
 <body>
 @php
     $statusLabels = ['lancar' => 'Lancar', 'kurang_lancar' => 'Kurang Lancar', 'diragukan' => 'Diragukan', 'macet' => 'Macet'];
-    $status = $kartu['calculation']['kolektibilitas'] ?? $pinjaman->kolektibilitas;
+    $status = array_key_exists('kolektibilitas', $kartu['calculation'] ?? [])
+        ? $kartu['calculation']['kolektibilitas'] : $pinjaman->kolektibilitas;
     $isRescheduled = filled($pinjaman->reschedule_ke1) || filled($pinjaman->reschedule_ke2) || filled($pinjaman->reschedule_ke3) || filled($pinjaman->reschedule_ke4);
     $angka = static fn ($value) => number_format((float) ($value ?? 0), 0, ',', '.');
 @endphp

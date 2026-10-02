@@ -8,6 +8,8 @@ use Carbon\CarbonInterface;
 
 class PumkLoanBalanceResolver
 {
+    public function __construct(private readonly PiutangCalculator $calculator) {}
+
     /** @return array{known:bool,saldo_pokok:?string,saldo_bunga:?string,total:?string,as_of_date:string,source_kind:?string,reason_code:?string} */
     public function resolve(PumkPinjaman $loan, CarbonImmutable $asOf): array
     {
@@ -27,17 +29,11 @@ class PumkLoanBalanceResolver
             if (! isset($baseline['sisa_pokok'], $baseline['sisa_bunga'])) {
                 return $unknown('missing_import_baseline');
             }
-            $principal = (string) $baseline['sisa_pokok'];
-            $interest = (string) $baseline['sisa_bunga'];
-            foreach ($loan->angsuran as $payment) {
-                if ($payment->batch_id !== null || $payment->created_at === null
-                    || $payment->created_at->lessThanOrEqualTo($loan->source_updated_at)
-                    || $payment->periode === null || $this->localDate($payment->periode)->greaterThan($asOf)) {
-                    continue;
-                }
-                $principal = bcsub($principal, (string) $payment->pokok, 2);
-                $interest = bcsub($interest, (string) $payment->bunga, 2);
-            }
+            // Gunakan delta bersih yang sama dengan kartu. created_at saja
+            // tidak dapat membedakan pembayaran yang sudah tercakup reimport.
+            $card = $this->calculator->hitungUntukPinjaman($loan, $asOf);
+            $principal = (string) $card['sisa_pokok'];
+            $interest = (string) $card['sisa_bunga'];
             $sourceKind = 'baseline_sumber';
         } else {
             if ($loan->pinjaman_pokok === null) {

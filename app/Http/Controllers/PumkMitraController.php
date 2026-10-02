@@ -53,7 +53,7 @@ class PumkMitraController extends Controller
                 'wilayah:id,nama',
                 'sektorUsaha:id,nama',
                 'pinjaman' => fn ($query) => $query
-                    ->select(['id', 'mitra_id', 'spj_awal', 'tanggal_pencairan', 'kolektibilitas', 'total_sisa', 'status', 'is_active', 'lunas_at'])
+                    ->with(['saldoAwal', 'angsuran', 'closures', 'classificationHistory'])
                     ->when($statusFilter === 'aktif', fn ($loan) => $loan->where('status', PumkPinjaman::STATUS_AKTIF)->where('is_active', true))
                     ->when($statusFilter === 'lunas', fn ($loan) => $loan->where('status', PumkPinjaman::STATUS_LUNAS))
                     ->when($matchingLoanIds !== null, fn ($loan) => $loan->whereIn('id', $matchingLoanIds))
@@ -78,8 +78,17 @@ class PumkMitraController extends Controller
             })
             ->orderBy('nama_mitra');
 
+        $mitraList = $mitraQuery->paginate(15)->withQueryString();
+        foreach ($mitraList as $mitra) {
+            foreach ($mitra->pinjaman as $pinjaman) {
+                $position = $collectibilitySummary->positionForLoan($pinjaman);
+                $pinjaman->setAttribute('rekap_category', $position['category']);
+                $pinjaman->setAttribute('rekap_balance', $position['balance']);
+            }
+        }
+
         return view('pumk-admin.mitra.index', [
-            'mitraList' => $mitraQuery->paginate(15)->withQueryString(),
+            'mitraList' => $mitraList,
             'collectibilitySummary' => $selectedCollectibility !== null
                 ? $collectibilitySummary->summarize($filters, $selectedCollectibility)
                 : null,

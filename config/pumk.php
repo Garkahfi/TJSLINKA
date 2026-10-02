@@ -12,4 +12,9 @@ return [
     ],
     // Batas dipilih pemilik aplikasi pada 29 September 2026; nominal saat penutupan tetap diaudit.
     'settlement_tolerance' => env('PUMK_SETTLEMENT_TOLERANCE', '100000.00'),
+    // Pengecualian rekap harus merujuk source_key yang sudah diverifikasi,
+    // bukan pencocokan nama mitra yang dapat mengenai record lain.
+    'recap_excluded_source_keys' => array_values(array_filter(array_map(
+        'trim', explode(',', (string) env('PUMK_RECAP_EXCLUDED_SOURCE_KEYS', '')),
+    ))),
 ];

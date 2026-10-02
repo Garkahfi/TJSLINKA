@@ -34,18 +34,15 @@ class PumkCollectibilitySummaryService
                 ->count()
             : 0;
 
-        (clone $scope)
-            ->where(fn (Builder $query) => $query
-                ->where(fn (Builder $active) => $active->where('status', PumkPinjaman::STATUS_AKTIF)->where('is_active', true))
-                ->orWhere('status', PumkPinjaman::STATUS_LUNAS))
+        $this->recapScope($scope)
             ->with(['saldoAwal', 'angsuran', 'closures', 'classificationHistory'])
             ->chunkById(200, function ($loans) use ($selectedCategory, &$amounts, &$unknownBalances, &$cacheDifferences): void {
                 foreach ($loans as $loan) {
-                    $category = $this->categoryAtCurrentStatus($loan);
+                    $position = $this->positionForLoan($loan);
+                    $category = $position['category'];
                     if ($selectedCategory !== null && $category !== $selectedCategory) {
                         continue;
                     }
-                    $position = $this->positionForLoan($loan);
                     $amount = $position['balance'];
                     $cacheDifferences += (int) $position['cache_difference'];
                     if ($amount === null) {
@@ -93,10 +90,11 @@ class PumkCollectibilitySummaryService
             throw new InvalidArgumentException('Kategori kolektibilitas tidak dikenal.');
         }
         $ids = [];
-        $this->ownerScope($filters)->select(['id', 'mitra_id', 'status', 'lunas_at', 'kolektibilitas'])
-            ->with(['closures', 'classificationHistory'])->chunkById(200, function ($loans) use ($category, &$ids): void {
+        $this->recapScope($this->ownerScope($filters))
+            ->with(['saldoAwal', 'angsuran', 'closures', 'classificationHistory'])
+            ->chunkById(200, function ($loans) use ($category, &$ids): void {
                 foreach ($loans as $loan) {
-                    if ($this->categoryAtCurrentStatus($loan) === $category) {
+                    if ($this->positionForLoan($loan)['category'] === $category) {
                         $ids[] = $loan->id;
                     }
                 }
@@ -119,6 +117,25 @@ class PumkCollectibilitySummaryService
                 $query->where('sektor_usaha_id', $filters['sektor']);
             }
         });
+    }
+
+    private function recapScope(Builder $scope): Builder
+    {
+        $excluded = config('pumk.recap_excluded_source_keys', []);
+        if ($excluded !== []) {
+            $scope->whereNotIn('source_key', $excluded);
+        }
+
+        return $scope->where(fn (Builder $query) => $query
+            ->where(fn (Builder $active) => $active->where('status', PumkPinjaman::STATUS_AKTIF)->where('is_active', true))
+            ->orWhere('status', PumkPinjaman::STATUS_LUNAS));
+    }
+
+    public function isIncluded(PumkPinjaman $loan): bool
+    {
+        return (($loan->status === PumkPinjaman::STATUS_AKTIF && $loan->is_active)
+            || $loan->status === PumkPinjaman::STATUS_LUNAS)
+            && ! in_array($loan->source_key, config('pumk.recap_excluded_source_keys', []), true);
     }
 
     private function activeBalance(PumkPinjaman $loan, int &$cacheDifferences): ?string
@@ -172,6 +189,10 @@ class PumkCollectibilitySummaryService
 
     private function categoryAtCurrentStatus(PumkPinjaman $loan): string
     {
+        if ($loan->status !== PumkPinjaman::STATUS_LUNAS) {
+            return self::normalizeCategory($this->calculator->hitungUntukPinjaman($loan)['kolektibilitas']);
+        }
+
         $value = $loan->kolektibilitas;
         if ($loan->status === PumkPinjaman::STATUS_LUNAS && $loan->lunas_at !== null) {
             $closure = $loan->closures->whereNull('reopened_at')->sortByDesc('id')->first();

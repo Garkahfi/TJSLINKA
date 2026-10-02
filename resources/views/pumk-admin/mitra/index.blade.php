@@ -97,7 +97,7 @@
                     @forelse($mitraList as $mitra)
                         @php
                             $pinjaman = $mitra->pinjaman->first();
-                            $status = $selectedCollectibility !== '' ? $selectedCollectibility : $pinjaman?->kolektibilitas;
+                            $status = $pinjaman?->rekap_category;
                         @endphp
                         <tr>
                             <td><strong>{{ $mitra->nama_mitra }}</strong></td>
@@ -110,7 +110,7 @@
                             </td>
                             <td>{{ $pinjaman?->status === 'lunas' ? 'Lunas' : ($pinjaman?->status === 'nonaktif' ? 'Nonaktif' : 'Aktif') }}</td>
                             <td style="text-align:right;font-weight:600">
-                                {{ $pinjaman && $pinjaman->total_sisa !== null ? $formatSummaryRupiah((string) $pinjaman->total_sisa) : '—' }}
+                                {{ $pinjaman && $pinjaman->rekap_balance !== null ? $formatSummaryRupiah((string) $pinjaman->rekap_balance) : '—' }}
                             </td>
                             <td class="actions">
                                 <a href="{{ route('pumk-admin.mitra.show', [$mitra, 'pinjaman' => $pinjaman?->id]) }}" class="pumk-table-action">Lihat Kartu</a>
@@ -127,6 +127,7 @@
                             <td colspan="5">
                                 <span class="summary-label">{{ $collectibilitySummary['unknown_balances'] > 0 ? 'Subtotal' : 'Total' }} Sisa {{ $collectibilityOptions[$selectedCollectibility] }}:</span>
                                 <span class="summary-note">Aktif dan Lunas/Arsip · seluruh halaman</span>
+                                <span class="summary-note">Kategori dihitung dari jadwal dan pembayaran yang tercatat; angka sumber tetap tersimpan sebagai snapshot.</span>
                                 @if($collectibilitySummary['unknown_balances'] > 0)
                                     <span class="summary-note">{{ number_format($collectibilitySummary['unknown_balances'], 0, ',', '.') }} pinjaman pada kategori ini memiliki saldo belum tersedia.</span>
                                 @endif
