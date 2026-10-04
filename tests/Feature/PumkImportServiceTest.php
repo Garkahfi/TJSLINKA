@@ -283,7 +283,7 @@ class PumkImportServiceTest extends TestCase
     {
         $cells = $this->validCells();
         $cells['AK'] = '100000.009';
-        $cells['AQ'] = '700000.06';
+        $cells['AQ'] = '700000.063';
         $this->invokeImportRow($cells, $this->batch('formula-presisi.xlsx'));
 
         $loan = PumkPinjaman::query()->firstOrFail();
@@ -293,7 +293,7 @@ class PumkImportServiceTest extends TestCase
         $result = app(PiutangCalculator::class)->hitungUntukPinjaman(
             $loan, CarbonImmutable::parse('2026-07-31'),
         );
-        $this->assertSame('700000.06', $result['jatuh_tempo_nominal']);
+        $this->assertSame('700000.063', $result['jatuh_tempo_nominal']);
         $this->assertSame(3, $result['bulan_tunggakan']);
         $this->assertSame('kurang_lancar', $result['kolektibilitas']);
     }

@@ -26,16 +26,23 @@ class PiutangCalculator
         ?CarbonInterface $tanggalAcuan = null,
     ): array {
         $pinjaman->loadMissing(['saldoAwal', 'angsuran']);
-
-        $asOf = $tanggalAcuan === null
-            ? CarbonImmutable::today()
-            : CarbonImmutable::instance($tanggalAcuan);
+        $hasilImpor = $pinjaman->source_updated_at !== null;
+        $baseline = $pinjaman->baseline_sumber ?? $this->baselineSumber($pinjaman);
+        $formulaSumber = $baseline['formula_sumber'] ?? [];
+        $tanggalSumber = $formulaSumber['tanggal_acuan'] ?? $pinjaman->source_updated_at?->toDateString();
+        if ($hasilImpor && $tanggalAcuan === null && ! $tanggalSumber) {
+            throw new LogicException('Tanggal acuan sumber PUMK belum tersedia.');
+        }
+        $asOf = $tanggalAcuan !== null
+            ? CarbonImmutable::instance($tanggalAcuan)
+            : ($hasilImpor ? CarbonImmutable::parse($tanggalSumber) : CarbonImmutable::today());
         if ($tanggalAcuan !== null && $pinjaman->source_updated_at !== null
             && $asOf->toDateString() < $pinjaman->source_updated_at->toDateString()) {
             throw new LogicException('Posisi sebelum snapshot impor belum dapat direkonstruksi dari data yang tersedia.');
         }
+        $posisiKantor = $hasilImpor && $tanggalAcuan === null;
         $effectivePayments = $pinjaman->angsuran->filter(
-            fn ($item) => $item->periode === null
+            fn ($item) => $posisiKantor || $item->periode === null
                 // Periode adalah bulan bisnis, bukan timestamp. Bandingkan YYYY-MM
                 // agar cast UTC dari DB tidak bergeser melampaui awal bulan WIB.
                 || $item->periode->format('Y-m') <= $asOf->format('Y-m'),
@@ -43,7 +50,7 @@ class PiutangCalculator
 
         $saldoAwal = $pinjaman->saldoAwal;
         $openingIncluded = $saldoAwal !== null && $saldoAwal->cutoff_date !== null
-            && $saldoAwal->cutoff_date->toDateString() <= $asOf->toDateString();
+            && ($posisiKantor || $saldoAwal->cutoff_date->toDateString() <= $asOf->toDateString());
         $pokokMasuk = $this->add(
             $openingIncluded ? $saldoAwal->pokok_masuk : null,
             ...$effectivePayments->pluck('pokok')->all(),
@@ -59,7 +66,6 @@ class PiutangCalculator
 
         $sisaPokokHitung = $this->sub($pinjaman->pinjaman_pokok, $pokokMasuk);
         $sisaBungaHitung = $this->sub($pinjaman->pinjaman_bunga, $bungaMasuk);
-        $hasilImpor = $pinjaman->source_updated_at !== null;
 
         // Nilai sisa/tunggakan dari workbook merupakan snapshot terakhir sumber.
         // Angsuran manual yang dicatat sesudah snapshot harus tetap tercermin di
@@ -71,27 +77,48 @@ class PiutangCalculator
                     && $item->created_at->greaterThan($pinjaman->source_updated_at),
             )
             : collect();
-        $baseline = $pinjaman->baseline_sumber ?? $this->baselineSumber($pinjaman);
         $pokokManualBaru = $this->sub($pokokMasuk, $baseline['total_pokok_masuk'] ?? null);
         $bungaManualBaru = $this->sub($bungaMasuk, $baseline['total_bunga_masuk'] ?? null);
-        $sisaPokok = $hasilImpor && ($baseline['sisa_pokok'] ?? null) !== null
-            ? $this->sub($baseline['sisa_pokok'], $pokokManualBaru)
+        // Replacing the aggregate opening balance with verified detailed
+        // history creates a different payment representation. Preserve the
+        // original source cells for audit, but calculate from that explicit
+        // replacement baseline rather than subtracting the old opening twice.
+        $sourceRawApplies = ! ($baseline['manual_history_replaces_opening'] ?? false);
+        $rawPokok = ($sourceRawApplies ? ($formulaSumber['sisa_pokok_raw'] ?? null) : null)
+            ?? $baseline['sisa_pokok'] ?? null;
+        $rawBunga = ($sourceRawApplies ? ($formulaSumber['sisa_bunga_raw'] ?? null) : null)
+            ?? $baseline['sisa_bunga'] ?? null;
+        $rawTotal = $sourceRawApplies ? ($formulaSumber['total_sisa_raw'] ?? null) : null;
+        $sisaPokokRaw = $hasilImpor && $rawPokok !== null
+            ? bcsub((string) $rawPokok, $pokokManualBaru, PumkDecimal::scale($rawPokok, $pokokManualBaru))
             : $sisaPokokHitung;
-        $sisaBunga = $hasilImpor && ($baseline['sisa_bunga'] ?? null) !== null
-            ? $this->sub($baseline['sisa_bunga'], $bungaManualBaru)
+        $sisaBungaRaw = $hasilImpor && $rawBunga !== null
+            ? bcsub((string) $rawBunga, $bungaManualBaru, PumkDecimal::scale($rawBunga, $bungaManualBaru))
             : $sisaBungaHitung;
+        $sisaPokok = PumkDecimal::roundCents($sisaPokokRaw);
+        $sisaBunga = PumkDecimal::roundCents($sisaBungaRaw);
+        $totalSisaRaw = $hasilImpor && $rawTotal !== null
+            ? bcsub(bcsub((string) $rawTotal, $pokokManualBaru,
+                PumkDecimal::scale($rawTotal, $pokokManualBaru)), $bungaManualBaru,
+                PumkDecimal::scale($rawTotal, $pokokManualBaru, $bungaManualBaru))
+            : bcadd($sisaPokokRaw, $sisaBungaRaw, PumkDecimal::scale($sisaPokokRaw, $sisaBungaRaw));
 
         if ($hasilImpor) {
-            $formulaSumber = $baseline['formula_sumber'] ?? [];
             $mulaiSumber = isset($formulaSumber['mulai_angsuran'])
                 ? CarbonImmutable::parse($formulaSumber['mulai_angsuran'])
                 : $pinjaman->mulai_angsuran;
+            $pokokSumber = $sourceRawApplies ? ($formulaSumber['pokok_masuk_raw'] ?? null) : null;
+            $bungaSumber = $sourceRawApplies ? ($formulaSumber['bunga_masuk_raw'] ?? null) : null;
+            $pokokEfektif = bcadd((string) ($pokokSumber ?? $baseline['total_pokok_masuk'] ?? $pokokMasuk),
+                $pokokManualBaru, PumkDecimal::scale($pokokSumber, $pokokManualBaru));
+            $bungaEfektif = bcadd((string) ($bungaSumber ?? $baseline['total_bunga_masuk'] ?? $bungaMasuk),
+                $bungaManualBaru, PumkDecimal::scale($bungaSumber, $bungaManualBaru));
             $schedule = $this->collectibilityFormula->calculate(
                 $mulaiSumber,
                 $formulaSumber['angsuran_bulanan'] ?? $pinjaman->nilai_angsuran_bulanan,
                 $formulaSumber['total_kewajiban'] ?? $pinjaman->total_pinjaman,
-                $pokokMasuk,
-                $bungaMasuk,
+                $pokokEfektif,
+                $bungaEfektif,
                 $asOf,
             );
             $bulanTunggakan = $schedule['bulan_tunggakan'] ?? null;
@@ -122,7 +149,10 @@ class PiutangCalculator
             'total_masuk' => $this->add($pokokMasuk, $bungaMasuk, $dendaMasuk),
             'sisa_pokok' => $sisaPokok,
             'sisa_bunga' => $sisaBunga,
-            'total_sisa' => $this->add($sisaPokok, $sisaBunga),
+            'total_sisa' => PumkDecimal::roundCents($totalSisaRaw),
+            'total_sisa_raw' => $totalSisaRaw,
+            'sisa_pokok_raw' => $sisaPokokRaw,
+            'sisa_bunga_raw' => $sisaBungaRaw,
             'bulan_tunggakan' => $bulanTunggakan,
             'nilai_tunggakan' => $nilaiTunggakan,
             'kolektibilitas' => $kolektibilitas,
@@ -210,6 +240,7 @@ class PiutangCalculator
                 'total_pokok_masuk' => $pokokMasuk,
                 'total_bunga_masuk' => $bungaMasuk,
                 'total_denda_masuk' => $dendaMasuk,
+                'manual_history_replaces_opening' => true,
             ]),
         ])->saveQuietly();
     }

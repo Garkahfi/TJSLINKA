@@ -204,15 +204,12 @@ class KartuPiutangService
         // Baris kosong dibentuk hanya di memori untuk menjaga struktur kartu.
         // Tidak ada transaksi nol yang dibuat di database.
         $rows = $yearRows;
-        $closingRow = $yearRows === [] ? null : $yearRows[array_key_last($yearRows)];
-        $filteredShortage = $closingRow
-            ? bcadd((string) $closingRow['saldo_pokok'], (string) $closingRow['saldo_bunga'], 2)
-            : bcadd($principal, $interest, 2);
-
         return [
             'tenor' => $tenor,
             'jadwal' => $rows,
-            'kekurangan' => $selectedYear === 'semua' ? bcadd($principal, $interest, 2) : $filteredShortage,
+            // A history-year selector changes visible rows, not the official
+            // financial position or its source reference date.
+            'kekurangan' => $calculation['total_sisa'],
             'calculation' => $calculation,
             'jadwal_error' => $validDates ? null : 'Jadwal angsuran belum dapat ditampilkan lengkap. Periksa tanggal Angsuran Pertama dan Jatuh Tempo pada Edit Data.',
             'has_history' => $hasOpening

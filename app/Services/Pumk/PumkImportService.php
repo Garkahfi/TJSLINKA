@@ -591,6 +591,11 @@ final class PumkImportService
                 'jatuh_tempo_nominal' => $this->money($cells['AQ'] ?? null, 'AQ', $warnings),
                 'total_pokok_bunga_masuk' => $this->money($cells['AN'] ?? null, 'AN', $warnings),
                 'tanggal_acuan' => $tanggalAcuan->toDateString(),
+                'pokok_masuk_raw' => $this->decimal($cells['AL'] ?? null),
+                'bunga_masuk_raw' => $this->decimal($cells['AM'] ?? null),
+                'sisa_pokok_raw' => $this->decimal($cells['AU'] ?? null),
+                'sisa_bunga_raw' => $this->decimal($cells['AV'] ?? null),
+                'total_sisa_raw' => $this->decimal($cells['AW'] ?? null),
             ],
         ])])->saveQuietly();
         $comparisonDifferences = $this->compareSourceWithCalculator($pinjaman->fresh(), $cells);
@@ -1059,6 +1064,12 @@ final class PumkImportService
         $value = $this->decimal($raw);
 
         return $value === null ? null : $this->scale($value, 2);
+    }
+
+    /** Raw numeric value for read-only reconciliation, before cent formatting. */
+    public function sourceDecimal(mixed $raw): ?string
+    {
+        return $this->decimal($raw);
     }
 
     private function rate(mixed $raw, string $column, array &$warnings): ?string

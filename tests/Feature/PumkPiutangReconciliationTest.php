@@ -37,7 +37,9 @@ class PumkPiutangReconciliationTest extends TestCase
         $closed = PumkPinjaman::create([
             'mitra_id' => $mitra->id, 'source_key' => hash('sha256', 'db-pumk-v1|pinjaman|2'),
             'status' => 'lunas', 'is_active' => false, 'kolektibilitas' => 'lancar',
-            'pinjaman_pokok' => '0.00', 'pinjaman_bunga' => '0.00', 'total_sisa' => '0.00',
+            // A legacy cached zero without source components is not proof of
+            // a zero financial position for this closed loan.
+            'total_sisa' => '0.00',
             'lunas_at' => '2026-09-01 12:00:00',
         ]);
         $workbook = $this->workbook([
@@ -58,7 +60,7 @@ class PumkPiutangReconciliationTest extends TestCase
         $this->assertCount(1, $row['payments']);
         $this->assertNull($result['loans'][1]['recap_total']);
         $this->assertSame($closed->id, $result['loans'][1]['pinjaman_id']);
-        $this->assertSame(1, $result['recap']['lancar']['unknown_balances']);
+        $this->assertSame(1, $result['recap']['belum_dinilai']['unknown_balances']);
         $this->assertSame(3, $result['source_rows_missing_in_database'][0]['source_no']);
         $this->assertSame($before, DB::table('pumk_pinjaman')->orderBy('id')->get()->toJson());
         $this->assertSame($payments, DB::table('pumk_angsuran')->orderBy('id')->get()->toJson());
@@ -78,6 +80,7 @@ class PumkPiutangReconciliationTest extends TestCase
         ]), $mitra->id);
 
         $this->assertSame('-0.01', $result['loans'][0]['source']['components_minus_aw']);
+        $this->assertSame('300.15', $result['source_subtotals']['lancar']['display_total']);
         $this->assertSame([], $result['source_rows_missing_in_database']);
     }
 

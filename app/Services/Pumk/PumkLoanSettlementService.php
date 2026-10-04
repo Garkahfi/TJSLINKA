@@ -20,7 +20,6 @@ class PumkLoanSettlementService
     /** @return array<string, mixed> */
     public function preview(PumkPinjaman $loan, ?CarbonImmutable $at = null): array
     {
-        $at ??= CarbonImmutable::now('Asia/Jakarta');
         // Pelunasan memakai total akhir yang sama dengan Kartu Piutang saat ini.
         // Resolver posisi historis tidak menjadi dasar keputusan pelunasan manual.
         $card = $this->calculator->hitungUntukPinjaman($loan, $at);
@@ -39,7 +38,7 @@ class PumkLoanSettlementService
             'saldo_bunga' => $known ? (string) $card['sisa_bunga'] : null,
             'total' => $known ? (string) $card['total_sisa'] : null,
             'kolektibilitas' => $card['kolektibilitas'],
-            'as_of_date' => $at->setTimezone('Asia/Jakarta')->toDateString(),
+            'as_of_date' => $card['tanggal_acuan'],
             'source_kind' => 'kartu_piutang', 'reason_code' => null,
             'eligible' => false, 'reason' => null, 'tolerance' => $tolerance,
             'needs_note' => false, 'message' => null,

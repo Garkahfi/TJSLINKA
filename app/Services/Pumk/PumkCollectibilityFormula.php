@@ -25,34 +25,33 @@ final class PumkCollectibilityFormula
 
         $start = CarbonImmutable::instance($mulai)->startOfDay();
         $date = CarbonImmutable::instance($asOf)->startOfDay();
-        // AK dapat memiliki pecahan lebih dari dua desimal. Jangan potong
-        // sebelum AK x AP; nominal AQ baru dinormalisasi ke sen.
+        // AK can contain sub-cent fractions; AQ is not rounded in Excel.
         $installment = (string) $angsuranBulanan;
-        $obligation = bcadd((string) $totalKewajiban, '0', 2);
-        if (bccomp($installment, '0', 14) <= 0 || bccomp($obligation, '0', 2) < 0) {
+        $scale = PumkDecimal::scale($installment, $totalKewajiban, $pokokDibayar, $bungaDibayar);
+        $obligation = bcadd((string) $totalKewajiban, '0', $scale);
+        if (bccomp($installment, '0', $scale) <= 0 || bccomp($obligation, '0', $scale) < 0) {
             return null;
         }
 
-        $dueCount = 0;
-        if ($date->greaterThanOrEqualTo($start)) {
-            // Excel DATEDIF(AH, AJ, "m") + 1 counts completed months.
-            // AI is stored as the contract end, not a cap on AP.
-            $through = $date;
-            // DATEDIF counts completed months,
-            // retaining the start date's day instead of rounding to month-start.
-            $months = ($through->year - $start->year) * 12 + $through->month - $start->month;
-            if ($through->day < $start->day) {
-                $months--;
-            }
-            $dueCount = $months + 1;
+        if ($date->lessThan($start)) {
+            // AP is blank in the workbook before the first installment date.
+            return null;
         }
 
-        // AQ adalah hasil MIN di Excel. Angsuran dengan pecahan sub-sen
-        // dibulatkan ke sen sesudah perkalian, bukan dipotong lebih awal.
-        $scheduled = bcadd(bcmul($installment, (string) $dueCount, 14), '0.005', 2);
-        $due = bccomp($scheduled, $obligation, 2) > 0 ? $obligation : $scheduled;
-        $paid = bcadd($pokokDibayar, $bungaDibayar, 2);
-        $raw = bcsub($due, $paid, 2);
+        // Excel DATEDIF(AH, AJ, "m") + 1 counts completed months. AI does
+        // not cap AP; retain AH's day instead of rounding to month-start.
+        $months = ($date->year - $start->year) * 12 + $date->month - $start->month;
+        if ($date->day < $start->day) {
+            $months--;
+        }
+        $dueCount = $months + 1;
+
+        // AQ has no ROUND in Excel. Preserve AK's full source precision until
+        // after AR is calculated, including at category boundaries.
+        $scheduled = bcmul($installment, (string) $dueCount, $scale);
+        $due = bccomp($scheduled, $obligation, $scale) > 0 ? $obligation : $scheduled;
+        $paid = bcadd($pokokDibayar, $bungaDibayar, $scale);
+        $raw = bcsub($due, $paid, $scale);
         // BCMath scale zero truncates toward zero, as Excel ROUNDDOWN(x, 0).
         $months = (int) bcdiv($raw, $installment, 0);
 
@@ -61,7 +60,7 @@ final class PumkCollectibilityFormula
             'jatuh_tempo_nominal' => $due,
             'tunggakan_mentah' => $raw,
             'bulan_tunggakan' => $months,
-            'nilai_tunggakan' => bcmul((string) $months, $installment, 2),
+            'nilai_tunggakan' => bcmul((string) $months, $installment, $scale),
             'kolektibilitas' => match (true) {
                 $months >= 10 => 'macet',
                 $months >= 7 => 'diragukan',

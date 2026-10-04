@@ -35,7 +35,7 @@ class PumkCollectibilitySummaryService
             : 0;
 
         $this->recapScope($scope)
-            ->with(['saldoAwal', 'angsuran', 'closures', 'classificationHistory'])
+            ->with(['saldoAwal', 'angsuran'])
             ->chunkById(200, function ($loans) use ($selectedCategory, &$amounts, &$unknownBalances, &$cacheDifferences): void {
                 foreach ($loans as $loan) {
                     $position = $this->positionForLoan($loan);
@@ -50,37 +50,43 @@ class PumkCollectibilitySummaryService
 
                         continue;
                     }
-                    $amounts[$category] = bcadd($amounts[$category], $amount, 2);
+                    $amounts[$category] = bcadd($amounts[$category], $position['raw_balance'] ?? $amount, 20);
                 }
             });
 
+        $rawSubtotal = array_reduce($amounts, fn (string $sum, string $amount): string => bcadd($sum, $amount, 20), '0.00');
+
         return [
-            'nominal' => $amounts,
-            'subtotal' => array_reduce($amounts, fn (string $sum, string $amount): string => bcadd($sum, $amount, 2), '0.00'),
+            'nominal' => array_map(PumkDecimal::roundCents(...), $amounts),
+            'subtotal' => PumkDecimal::roundCents($rawSubtotal),
             'unknown_balances' => $unknownBalances,
             'cache_differences' => $cacheDifferences,
             'status_flag_mismatches' => $statusFlagMismatches,
         ];
     }
 
-    /** The audit and footer must use the same read-only financial position.
-     * @return array{category:string,balance:?string,cache_difference:bool}
+    /** The audit, filter, and footer use one read-only financial position.
+     * @return array{category:string,balance:?string,raw_balance:?string,cache_difference:bool}
      */
     public function positionForLoan(PumkPinjaman $loan): array
     {
-        $loan->loadMissing(['saldoAwal', 'angsuran', 'closures', 'classificationHistory']);
-        $differences = 0;
+        $loan->loadMissing(['saldoAwal', 'angsuran']);
+        if (! $this->hasCardComponents($loan)) {
+            return ['category' => 'belum_dinilai', 'balance' => null, 'raw_balance' => null, 'cache_difference' => false];
+        }
+        $calculated = $this->calculator->hitungUntukPinjaman($loan);
+        $balance = (string) $calculated['total_sisa'];
+        $cached = $loan->total_sisa === null ? null : (string) $loan->total_sisa;
 
         return [
-            'category' => $this->categoryAtCurrentStatus($loan),
-            'balance' => $loan->status === PumkPinjaman::STATUS_LUNAS
-                ? $this->closedBalance($loan)
-                : $this->activeBalance($loan, $differences),
-            'cache_difference' => $differences > 0,
+            'category' => self::normalizeCategory($calculated['kolektibilitas']),
+            'balance' => $balance,
+            'raw_balance' => (string) $calculated['total_sisa_raw'],
+            'cache_difference' => $cached === null || bccomp($cached, $balance, 2) !== 0,
         ];
     }
 
-    /** Match the table to the same category policy, including closure history.
+    /** Match the table to the same financial category policy as the footer.
      * @param  array<string,mixed>  $filters
      * @return list<int>
      */
@@ -91,7 +97,7 @@ class PumkCollectibilitySummaryService
         }
         $ids = [];
         $this->recapScope($this->ownerScope($filters))
-            ->with(['saldoAwal', 'angsuran', 'closures', 'classificationHistory'])
+            ->with(['saldoAwal', 'angsuran'])
             ->chunkById(200, function ($loans) use ($category, &$ids): void {
                 foreach ($loans as $loan) {
                     if ($this->positionForLoan($loan)['category'] === $category) {
@@ -138,77 +144,12 @@ class PumkCollectibilitySummaryService
             && ! in_array($loan->source_key, config('pumk.recap_excluded_source_keys', []), true);
     }
 
-    private function activeBalance(PumkPinjaman $loan, int &$cacheDifferences): ?string
-    {
-        $cached = $loan->total_sisa === null ? null : (string) $loan->total_sisa;
-        if (! $this->hasCardComponents($loan)) {
-            return $cached;
-        }
-
-        $calculated = (string) $this->calculator->hitungUntukPinjaman($loan)['total_sisa'];
-        if ($cached === null || bccomp($cached, $calculated, 2) !== 0) {
-            $cacheDifferences++;
-        }
-
-        return $calculated;
-    }
-
-    private function closedBalance(PumkPinjaman $loan): ?string
-    {
-        $currentClosure = $loan->closures->whereNull('reopened_at')->sortByDesc('id')->first();
-        $fromClosure = $currentClosure?->settlement_snapshot['lunas_total_saldo'] ?? null;
-        $fromLoan = $loan->lunas_total_saldo;
-        if ($fromClosure !== null && $fromLoan !== null && bccomp((string) $fromClosure, (string) $fromLoan, 2) !== 0) {
-            return null;
-        }
-        if ($fromClosure !== null || $fromLoan !== null) {
-            return (string) ($fromClosure ?? $fromLoan);
-        }
-
-        // A legacy zero can be a reset rather than the closing balance; without metadata it is not proven.
-        if ($loan->lunas_at === null || $loan->total_sisa === null || bccomp((string) $loan->total_sisa, '0.00', 2) === 0
-            || ! $this->hasCardComponents($loan)) {
-            return null;
-        }
-
-        $calculated = (string) $this->calculator->hitungUntukPinjaman($loan)['total_sisa'];
-        if (bccomp((string) $loan->total_sisa, $calculated, 2) !== 0) {
-            return null;
-        }
-
-        return (string) $loan->total_sisa;
-    }
-
     private function hasCardComponents(PumkPinjaman $loan): bool
     {
         $baseline = $loan->baseline_sumber ?? ['sisa_pokok' => $loan->sisa_pokok, 'sisa_bunga' => $loan->sisa_bunga];
 
         return (($loan->source_updated_at !== null && isset($baseline['sisa_pokok'])) || $loan->pinjaman_pokok !== null)
             && (($loan->source_updated_at !== null && isset($baseline['sisa_bunga'])) || $loan->pinjaman_bunga !== null);
-    }
-
-    private function categoryAtCurrentStatus(PumkPinjaman $loan): string
-    {
-        if ($loan->status !== PumkPinjaman::STATUS_LUNAS) {
-            return self::normalizeCategory($this->calculator->hitungUntukPinjaman($loan)['kolektibilitas']);
-        }
-
-        $value = $loan->kolektibilitas;
-        if ($loan->status === PumkPinjaman::STATUS_LUNAS && $loan->lunas_at !== null) {
-            $closure = $loan->closures->whereNull('reopened_at')->sortByDesc('id')->first();
-            if ($closure !== null && array_key_exists('kolektibilitas', $closure->settlement_snapshot ?? [])) {
-                return self::normalizeCategory($closure->settlement_snapshot['kolektibilitas']);
-            }
-            $closedDate = $loan->lunas_at->timezone('Asia/Jakarta')->toDateString();
-            $history = $loan->classificationHistory->where('attribute', 'kolektibilitas');
-            if ($history->contains(fn ($item): bool => $item->effective_from->toDateString() > $closedDate)) {
-                $value = $history->filter(fn ($item): bool => $item->effective_from->toDateString() <= $closedDate)
-                    ->sortByDesc(fn ($item): string => $item->effective_from->toDateString().'-'.str_pad((string) $item->id, 12, '0', STR_PAD_LEFT))
-                    ->first()?->value;
-            }
-        }
-
-        return self::normalizeCategory($value);
     }
 
     public static function normalizeCategory(?string $value): string

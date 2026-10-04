@@ -34,9 +34,9 @@ class PumkMitraManagementTest extends TestCase
         $this->loan($matching, 'lancar', 700000, [
             'pinjaman_pokok' => 700000,
             'pinjaman_bunga' => 0,
-            'mulai_angsuran' => '2027-01-01',
-            'selesai_angsuran' => '2027-07-01',
-            'nilai_angsuran_bulanan' => 100000,
+            'mulai_angsuran' => '2020-01-01',
+            'selesai_angsuran' => '2020-07-01',
+            'nilai_angsuran_bulanan' => 700000,
         ]);
 
         $otherRegion = PumkWilayah::create(['nama' => 'Wilayah Lain', 'slug' => 'wilayah-lain']);

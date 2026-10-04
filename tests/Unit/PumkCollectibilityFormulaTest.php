@@ -59,13 +59,13 @@ class PumkCollectibilityFormulaTest extends TestCase
     {
         $start = CarbonImmutable::parse('2026-01-05');
         $expected = [
-            '2026-01-04' => 0, '2026-01-05' => 1,
+            '2026-01-04' => null, '2026-01-05' => 1,
             '2026-02-04' => 1, '2026-02-05' => 2, '2026-02-06' => 2,
             '2026-12-31' => 12,
         ];
         foreach ($expected as $date => $count) {
             $result = $this->formula->calculate($start, '100000.00', '250000.00', '0.00', '0.00', CarbonImmutable::parse($date));
-            $this->assertSame($count, $result['jumlah_jatuh_tempo'], $date);
+            $this->assertSame($count, $result['jumlah_jatuh_tempo'] ?? null, $date);
         }
         $capped = $this->formula->calculate($start, '100000.00', '250000.00', '0.00', '0.00', CarbonImmutable::parse('2026-12-31'));
         $this->assertSame('250000.00', $capped['jatuh_tempo_nominal']);
@@ -103,6 +103,20 @@ class PumkCollectibilityFormulaTest extends TestCase
             '51353616.04', '0', '0', $date,
         );
         $this->assertSame(31, $loan199['jumlah_jatuh_tempo']);
-        $this->assertSame('43706590.90', $loan199['jatuh_tempo_nominal']);
+        $this->assertSame('43706590.89741621', $loan199['jatuh_tempo_nominal']);
+    }
+
+    public function test_sub_cent_aq_is_not_rounded_before_ar_boundary(): void
+    {
+        $date = CarbonImmutable::parse('2026-07-31');
+        $result = $this->formula->calculate(
+            CarbonImmutable::parse('2026-07-01'), '100000.004', '1000000.00',
+            '0.00', '0.01', $date,
+        );
+
+        $this->assertSame('100000.004', $result['jatuh_tempo_nominal']);
+        $this->assertSame('99999.994', $result['tunggakan_mentah']);
+        $this->assertSame(0, $result['bulan_tunggakan']);
+        $this->assertSame('lancar', $result['kolektibilitas']);
     }
 }

@@ -1,115 +1,43 @@
-# Rekonsiliasi kartu piutang PUMK
+# Rekonsiliasi kartu piutang PUMK internal
 
-Pemeriksaan lanjutan dilakukan pada checkout lokal 2 Oktober 2026. Audit awal
-dilakukan baca-saja; tes mutasi memakai SQLite `:memory:` terpisah. Sesudah
-backup dan dry-run, metadata rumus sumber dibackfill pada database lokal.
-Tidak ada reimport, pelunasan, pembayaran pengganti, perubahan berkas SPJ,
-atau perubahan saldo asli dari pekerjaan ini.
+Pemeriksaan dan perbaikan ini berlaku untuk PUMK internal yang memakai Kartu Piutang, **bukan PUMK BRI**. Posisi keuangan kantor memakai tanggal acuan workbook resmi, bukan tanggal komputer. Audit sumber dan database dilakukan baca-saja; perubahan database hanya berupa metadata presisi sumber dan penyegaran cache pinjaman aktif setelah backup. Tidak ada reimport, pelunasan, pembayaran pengganti, perubahan SPJ, atau penghapusan histori.
 
-## Sumber resmi dan identitas
+## Sumber dan cakupan
 
-Satu-satunya sumber keuangan adalah `Database PUMK TJSL New (2).xlsx`, sheet
-`Database new versi baseon SPJ` (`tblRoutineReg4`), SHA-256
-`14c466ca76ce62596052e3614fc6b7b4176c31b07c1407e9adb1b29cc97220b4`.
-Tanggal acuan `C5` adalah 31 Juli 2026. Ada 394 baris sumber (9–402). Kolom A
-dicocokkan ke `source_key = SHA256("db-pumk-v1|pinjaman|<nomor>")`, bukan nama
-mitra. Dokumen SPJ hanya berkas pendukung: nomor, tanggal, isi, dan waktu
-unggahnya tidak menentukan angka keuangan atau kolektibilitas.
+- Workbook: `Database PUMK TJSL New (2).xlsx`; sheet `Database new versi baseon SPJ`; tabel `tblRoutineReg4`. SHA-256: `14c466ca76ce62596052e3614fc6b7b4176c31b07c1407e9adb1b29cc97220b4`.
+- Tanggal acuan `C5`/`AJ`: **31 Juli 2026**. Ada 394 nomor sumber pada baris 9-402. Nomor di A berada di luar rentang tabel B8:BD402; pembaca tetap mengambil seluruh kolom bisnis hingga CJ.
+- Nomor sumber dicocokkan dengan `source_key = SHA256("db-pumk-v1|pinjaman|<nomor>")`, bukan nama mitra. Semuanya cocok dengan 394 pinjaman lokal: 371 aktif dan 23 lunas. Relasi saat audit menunjuk ke 394 ID mitra berbeda; ini hasil data, bukan asumsi model. Pinjaman lokal tambahan ID 395 adalah dummy terverifikasi yang dikecualikan dari rekap; ID 396 nonaktif.
+- Aplikasi lokal memakai MySQL `127.0.0.1:3306`, database `tjslinka`. Kredensial dan data pribadi tidak dicantumkan. Sheet lama `Database Saldo Piutang` dan dokumen SPJ bukan sumber angka keuangan.
 
-## Rumus kartu dan rekap
+## Aturan keuangan yang diterapkan
 
-- Snapshot impor menyimpan sisa pokok `AU`, sisa bunga `AV`, pembayaran pokok
-  `AL`, dan bunga `AM`. Untuk posisi berjalan, tiap sisa dikurangi **delta
-  bersih** pembayaran komponen tersebut dari baseline. Saldo awal adalah
-  agregat pembayaran historis; transaksi rinci periode yang sama tidak boleh
-  dihitung dua kali. Edit naik/turun, refresh, dan reimport harus idempoten.
-- `AP=DATEDIF(AH,AJ,"m")+1`, `AQ=min(AG,AK×AP)`,
-  `AR=ROUNDDOWN((AQ−AN)/AK,0)`, `AN=AL+AM`. `AI` adalah akhir kontrak,
-  bukan batas AP. Pada tanggal berjalan AP/AQ bertambah sesuai AH, lalu
-  pembayaran pokok+bunga yang sah mengubah AN. Denda tidak termasuk AN.
-- Tunggakan mentah berasal dari `AQ−AN`, **bukan** `AS` yang sudah dipotong
-  ke bulan penuh. `ROUNDDOWN` memotong menuju nol, termasuk untuk nilai
-  negatif. AR ≤1 Lancar, 2–6 Kurang Lancar, 7–9 Diragukan, ≥10 Macet.
-  Input jadwal tidak lengkap menghasilkan `belum_dinilai`, bukan Lancar.
-- AK sumber dapat mempunyai pecahan sub-sen. Importer dan backfill lokal
-  `baseline_sumber.formula_sumber` mempertahankan AK mentah, AH, AG, AP, AQ,
-  dan AN untuk perhitungan/pemeriksaan. Pembulatan ke sen dilakukan **sesudah**
-  perkalian AK×AP. Backfill hanya menambah metadata sumber, lalu menyegarkan
-  cache pinjaman aktif; snapshot penutupan pinjaman lunas tetap dipertahankan.
-- Nominal rekap adalah `AU+AV` setelah delta pembayaran, bukan nilai AS atau
-  tunggakan. Setiap ID pinjaman aktif/lunas dihitung sekali. Penutupan
-  administratif mempertahankan saldo signed dan kategori saat penutupan;
-  penutupan bukan pembayaran. Filter status dan pagination tidak membatasi
-  rekap gabungan; pencarian, wilayah, dan sektor tetap membatasinya.
+1. Default kartu, kategori/filter daftar, rekap aktif+lunas, dan pratinjau pelunasan pinjaman impor menggunakan tanggal acuan sumber dari `baseline_sumber.formula_sumber.tanggal_acuan` (fallback ke tanggal snapshot impor). Jam komputer, tahun filter histori kartu, dan tanggal penutupan tidak memajukan tanggal acuan tersebut. Laporan historis yang meminta tanggal eksplisit tetap memakai tanggal yang diminta.
+2. Formula resmi: `AP=DATEDIF(AH,AJ,"m")+1` bila tanggal valid dan AJ tidak lebih awal dari AH; `AQ=min(AG,AK*AP)` tanpa pembulatan awal; `AR=ROUNDDOWN((AQ-AN)/AK,0)`; `AN=AL+AM`. AR <=1 Lancar, 2-6 Kurang Lancar, 7-9 Diragukan, >=10 Macet. AI adalah akhir kontrak, bukan batas AP. Denda tidak termasuk AN. Jadwal kosong/invalid tidak diubah diam-diam menjadi Lancar.
+3. AL/AM efektif berasal dari baseline sumber ditambah **delta bersih** pembayaran lokal yang benar-benar tercatat. Pada posisi kantor, seluruh pembayaran yang relevan dihitung sebagaimana penjumlahan kolom workbook, tanpa cutoff periode berdasarkan C5. Audit historis bertanggal eksplisit tetap memakai batas waktu yang diminta. Saldo awal agregat dan rincian yang merepresentasikan pembayaran sama tidak dihitung dua kali.
+4. AU/AV/AW mentah sumber dipertahankan. Setelah delta pembayaran, `AW_efektif = AW_sumber - delta_pokok - delta_bunga`. Perhitungan memakai presisi mentah, lalu pembulatan ke dua desimal **di akhir**. Nominal rekap menjumlah AW efektif mentah per ID pinjaman unik sebelum pembulatan subtotal kategori. Saldo negatif tetap bertanda negatif.
+5. Pinjaman aktif dan lunas memakai kalkulasi kartu yang sama untuk rekap. Menandai lunas/reopen adalah perubahan status administratif, bukan pembayaran; snapshot penutupan tetap sebagai histori dan tidak ditulis ulang. Status tidak memaksa kategori menjadi Lancar. Filter status dan pagination tidak membatasi rekap gabungan; pencarian, wilayah, dan sektor tetap membatasinya. Toleransi pelunasan Rp100.000 tidak dipakai sebagai toleransi rekonsiliasi.
 
-## Audit baca-saja database lokal
+## Penerapan database lokal dan hasil audit
 
-Koneksi efektif: MySQL `127.0.0.1:3306`, database `tjslinka`, tanpa menampilkan
-kredensial. AP, AQ, AR, dan AT dari rumus di atas cocok dengan cached value
-pada **394/394** baris resmi di tanggal snapshot. ID 97 tetap Lancar (AR −13),
-ID 323 Kurang Lancar, dan ID 325 Macet.
+Backup sebelum backfill: `storage/backups/pumk-reg4-before-backfill-20261003-184800.sql` (2.191.816 byte; SHA-256 `fd4beec380850183f2d303c51943be4fcf9bb60576b20e286b6e2c9aa352f4d5`). Dump dan footer diverifikasi sebelum perubahan. Untuk pemulihan, tinjau backup tersebut dan gunakan prosedur restore database yang disetujui; tidak ada restore otomatis.
 
-Seluruh 394 nomor sumber cocok dengan ID pinjaman lokal: 371 aktif dan 23
-lunas. Pada saat audit, relasinya menunjuk ke 394 ID mitra berbeda; ini hasil
-database, bukan asumsi satu baris Excel selalu satu mitra. Dua pinjaman lokal
-di luar workbook adalah dummy terverifikasi ID 395 (dikecualikan dari rekap
-berdasarkan source key) dan ID 396 nonaktif. Tidak ada saldo dalam cakupan
-rekap yang tak diketahui pada audit ini.
+Dry-run mencocokkan 394/394 source key dan input formula. Backfill transaksional menyimpan metadata presisi pada 394 baseline, menyegarkan 85 cache pinjaman aktif yang memang berubah, dan tidak menyentuh 23 cache/snapshot penutupan. Dry-run ulang menunjukkan 0 metadata atau cache yang tersisa untuk diubah. Tidak ada report monitoring tersimpan yang perlu ditandai stale. Sebelumnya 394 baseline tersebut belum menyimpan metadata presisi lengkap.
 
-Sebelum backfill, **394/394 baseline lokal belum menyimpan `formula_sumber`**.
-Dua jadwal tersimpan berbeda dari file resmi: AI sumber ID 43 tidak valid,
-sementara AH lokal ID 82 berbeda. AI tidak memengaruhi AP. Metadata rumus
-sekarang memakai AH dari sheet resmi tanpa menimpa field kontrak AI atau
-berkas pendukung.
+Perhitungan independen dari input workbook cocok dengan cached `AP`, `AR`, dan `AT` pada 394/394 baris saat C5. `AQ` cached pada nomor sumber 197 dan 199 berbeda hanya di presisi tampilan; formula aplikasi mempertahankan hasil mentah sebelum AR. Nomor 198 memiliki cached `AW=0,22383972`, yang ditampilkan Rp0,22; nilai Rp0,23 sebelumnya berasal dari menjumlah komponen yang sudah dipotong ke sen. Selisih satu sen itu sudah hilang tanpa transaksi koreksi.
 
-Backup pra-perubahan telah diverifikasi di
-`storage/backups/pumk-reg4-before-backfill-20261002-021345.sql` (2.084.208
-byte, SHA-256 `91b09f646066d84ae3d21259ad2ff57a42d0276fa382fb94d4bef4b3a3ba6783`).
-Dry-run 394/394 cocok, tanpa proyeksi perubahan saldo. Backfill transaksional
-menambahkan metadata pada 394 baseline; cache 371 pinjaman aktif disegarkan.
-Perubahan cache kategori terjadi pada 15 ID, cache tunggakan pada 83 ID,
-sedangkan 23 pinjaman lunas mempertahankan snapshot penutupan. Tidak ada
-report monitoring tersimpan yang perlu ditandai stale saat penerapan.
-Audit sesudah membuktikan **nol selisih AP/AQ/AR/AT maupun saldo komponen**
-antara kartu lokal dan sheet resmi pada tanggal snapshot untuk seluruh 394 ID.
-Cache saldo dan kategori aktif juga konsisten dengan kalkulator berjalan.
+| Basis | Lancar | Kurang Lancar | Diragukan | Macet | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Workbook resmi pada C5 (jumlah / Rp) | 66 / 340.392.096,12 | 89 / 722.233.183,04 | 66 / 649.402.735,00 | 173 / 2.460.327.493,00 | 394 / 4.172.355.507,16 |
+| Rekap aplikasi lokal sesudah perubahan (jumlah / Rp) | 66 / 340.392.096,12 | 89 / 718.899.183,04 | 66 / 649.402.735,00 | 173 / 2.460.327.493,00 | 394 / 4.169.021.507,16 |
 
-| Basis | Lancar | Kurang Lancar | Diragukan | Macet |
-| --- | ---: | ---: | ---: | ---: |
-| Snapshot sumber 31 Juli (jumlah / AW dinormalisasi) | 66 / Rp340.392.096,12 | 89 / Rp722.233.183,04 | 66 / Rp649.402.735,00 | 173 / Rp2.460.327.493,00 |
-| Rekap lokal sebelumnya, kategori snapshot / saldo berjalan | 66 / Rp340.392.096,13 | 89 / Rp718.899.183,04 | 66 / Rp649.402.735,00 | 173 / Rp2.460.327.493,00 |
-| Rekap lokal sesudah rumus berjalan dan backfill (jumlah / saldo) | 62 / Rp253.651.707,13 | 90 / Rp775.944.305,00 | 61 / Rp531.059.231,04 | 181 / Rp2.608.366.264,00 |
+Satu-satunya selisih saldo mentah lokal terhadap AW workbook ada pada nomor sumber **323**: sumber Rp186.664.000, kartu Rp183.330.000. Transaksi manual lokal ID **95**, periode Agustus 2026, pokok Rp3.334.000, menyebabkan delta itu. AR sumber 3 menjadi AR lokal 2; keduanya tetap Kurang Lancar. Transaksi impor ID 89-92 sudah tercakup baseline. ID 95 tidak mempunyai nomor/berkas bukti pembayaran; keabsahannya perlu pemeriksaan manusia. Transaksi tidak dihapus maupun dinyatakan sah hanya demi menyamakan rekap.
 
-Sebanyak 15 ID berbeda kategori dari snapshot Juli pada posisi berjalan.
-Nomor sumbernya: 9, 27, 77, 92, 106, 114, 130, 137, 154, 156, 165,
-174, 176, 194, dan 199. Total rekap lokal sebelum dan sesudah tetap
-Rp4.169.021.507,17; perubahan pada baris kategori adalah perpindahan
-kelompok, bukan penciptaan saldo.
-Kategori dapat berubah karena waktu/pembayaran; kedua baris tabel tidak boleh
-disamakan tanpa menyetarakan tanggal, transaksi, cakupan, dan presisi.
-Selisih saldo terhadap AW sumber hanya pada dua ID:
+Pada seluruh 394 baris, tanggal default kartu dan AP sesuai C5/sumber; kategori lokal sesuai AT sumber. AR lokal berbeda hanya untuk nomor 323 karena transaksi ID 95. Saldo mentah lokal berbeda hanya pada nomor yang sama. Jadwal sumber ID 43 mempunyai AI yang tidak valid dan AH tersimpan lokal ID 82 berbeda; metadata formula memakai AH workbook resmi tanpa menimpa kontrak atau SPJ. Nomor 97 tetap Lancar (AR -13), nomor 130 Diragukan (AR 8), nomor 139 Macet (AR 10), dan nomor 198 Lancar dengan saldo Rp0,22.
 
-- ID 323: sumber Rp186.664.000, kartu Rp183.330.000. Delta pokok
-  Rp3.334.000 berasal dari transaksi manual ID 95 periode Agustus; transaksi
-  impor ID 89–92 sudah tercakup baseline. ID 95 tidak berisi nomor maupun
-  berkas bukti pembayaran; validitasnya perlu diperiksa manusia. Tidak diubah.
-- ID 198: komponen tersimpan menjumlah Rp0,23, cached AW yang dinormalisasi
-  Rp0,22. Selisih Rp0,01 adalah normalisasi komponen, bukan transaksi.
+Monitoring PT INKA mempunyai cakupan operasional/historis sendiri. Ia tidak otomatis harus memiliki jumlah kontributor sama dengan rekap aktif+lunas; parameter tanggal eksplisitnya tetap berlaku. Modul PUMK BRI tidak diubah.
 
-Monitoring PT INKA memiliki cakupan operasional tersendiri dan tidak wajib
-sama dengan rekap aktif+lunas. Audit layanan lokal tahun 2026 berstatus
-`available` per 1 Oktober 2026: 371 pinjaman diketahui, 24 ditutup dalam
-cakupan monitoring, nol tidak diketahui, dan klasifikasi tidak terbatas.
-Histori 2025 yang parsial tidak boleh dianggap bernilai nol. Endpoint
-`/monitoring/pumk-inka` aktif tetapi mengalihkan tamu ke login; UAT visual
-dengan akun berwenang tetap perlu dilakukan.
+## Verifikasi
 
-## Validasi dan langkah lanjut
+Tes otomatis menggunakan SQLite `:memory:` terpisah; pengaman TestCase menolak koneksi testing ke database aplikasi. Pengujian mencakup tanggal komputer yang berubah tanpa mengubah C5, perubahan tanggal resmi pada fixture, pembayaran setelah snapshot, presisi sub-sen, filter/rekap aktif+lunas, dan histori penutupan. Hasil jumlah tes aktual dicatat pada laporan pekerjaan, bukan diasumsikan dari pengujian terdahulu.
 
-Tes keuangan dijalankan pada SQLite `:memory:`; TestCase menolak koneksi
-testing yang memakai database aplikasi. Audit workbook dan database utama
-sebelum/sesudah dilakukan baca-saja. Regresi terkait: **126 tes dan 1.125
-asersi lulus**; keseluruhan suite: **312 tes dan 3.551 asersi lulus**.
-UAT visual dengan akun berwenang tetap dilaporkan terpisah.
-Jangan menjalankan `migrate:fresh`, membuat pembayaran fiktif, atau mengubah
-dokumen SPJ untuk menyamakan angka.
+Audit dan GET tetap baca-saja. UAT visual dengan akun Admin PUMK masih perlu memastikan detail kartu, filter kategori dan footer, ekspor, serta monitoring historis terlihat sesuai di browser. Jangan menggunakan `migrate:fresh`, pembayaran fiktif, atau perubahan SPJ untuk mengejar subtotal workbook.

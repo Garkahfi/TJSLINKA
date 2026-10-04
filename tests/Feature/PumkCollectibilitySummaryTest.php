@@ -7,6 +7,7 @@ use App\Models\PumkClassificationHistory;
 use App\Models\PumkLoanClosure;
 use App\Models\PumkMitra;
 use App\Models\PumkPinjaman;
+use App\Models\PumkSaldoAwal;
 use App\Models\PumkSektorUsaha;
 use App\Models\PumkWilayah;
 use App\Models\User;
@@ -37,8 +38,8 @@ class PumkCollectibilitySummaryTest extends TestCase
         $result = app(PumkCollectibilitySummaryService::class)->summarize([]);
 
         $this->assertSame([
-            'lancar' => '806768.00', 'kurang_lancar' => '500000.00',
-            'diragukan' => '-20000.00', 'macet' => '2100000.00',
+            'lancar' => '786768.00', 'kurang_lancar' => '500000.00',
+            'diragukan' => '0.00', 'macet' => '2100000.00',
             'belum_dinilai' => '250000.00',
         ], $result['nominal']);
         $this->assertSame('3636768.00', $result['subtotal']);
@@ -50,9 +51,9 @@ class PumkCollectibilitySummaryTest extends TestCase
         $this->get(route('pumk-admin.mitra.index', ['kolektibilitas' => '']))
             ->assertOk()->assertDontSee('class="pumk-collectibility-footer"', false);
         foreach ([
-            'lancar' => ['Total Sisa Lancar:', 'Rp806.768'],
+            'lancar' => ['Total Sisa Lancar:', 'Rp786.768'],
             'kurang_lancar' => ['Total Sisa Kurang Lancar:', 'Rp500.000'],
-            'diragukan' => ['Total Sisa Diragukan:', '-Rp20.000'],
+            'diragukan' => ['Total Sisa Diragukan:', 'Rp0'],
             'macet' => ['Total Sisa Macet:', 'Rp2.100.000'],
         ] as $category => [$label, $amount]) {
             $this->get(route('pumk-admin.mitra.index', ['kolektibilitas' => $category]))
@@ -88,19 +89,19 @@ class PumkCollectibilitySummaryTest extends TestCase
         $this->get(route('pumk-admin.mitra.index', ['status' => 'aktif', 'page' => 1]))
             ->assertOk()->assertDontSee('class="pumk-collectibility-footer"', false);
         $this->get(route('pumk-admin.mitra.index', ['status' => 'aktif', 'kolektibilitas' => 'macet', 'page' => 1]))
-            ->assertOk()->assertSee('Total Sisa Macet:')->assertSee('Rp100');
+            ->assertOk()->assertSee('Total Sisa Macet:')->assertSee('Rp125');
         $this->get(route('pumk-admin.mitra.index', ['status' => 'lunas', 'kolektibilitas' => 'macet', 'page' => 2]))
-            ->assertOk()->assertSee('Total Sisa Macet:')->assertSee('Rp100');
+            ->assertOk()->assertSee('Total Sisa Macet:')->assertSee('Rp125');
         $this->get(route('pumk-admin.mitra.index', ['status' => 'semua', 'kolektibilitas' => 'lancar', 'page' => 1]))
-            ->assertOk()->assertSee('Total Sisa Lancar:')->assertSee('Rp660');
+            ->assertOk()->assertSee('Total Sisa Lancar:')->assertSee('Rp635');
         $this->get(route('pumk-admin.mitra.index', ['status' => 'semua', 'kolektibilitas' => 'lancar', 'page' => 2]))
-            ->assertOk()->assertSee('Total Sisa Lancar:')->assertSee('Rp660')
+            ->assertOk()->assertSee('Total Sisa Lancar:')->assertSee('Rp635')
             ->assertSeeInOrder(['Total Sisa Lancar:', 'pumk-pagination'])
             ->assertDontSee('Total Sisa Macet:');
         $this->get(route('pumk-admin.mitra.index', [
             'q' => 'Mitra Pilihan', 'wilayah' => $west->id, 'sektor' => $trade->id,
             'status' => 'aktif', 'kolektibilitas' => 'macet',
-        ]))->assertOk()->assertSee('Total Sisa Macet:')->assertSee('Rp100');
+        ]))->assertOk()->assertSee('Total Sisa Macet:')->assertSee('Rp125');
         $this->get(route('pumk-admin.mitra.index', ['status' => 'semua']))
             ->assertOk()->assertDontSee('class="pumk-collectibility-footer"', false);
         $this->get(route('pumk-admin.mitra.index', ['q' => 'Tidak Ada Mitra Ini', 'kolektibilitas' => 'macet']))
@@ -109,7 +110,7 @@ class PumkCollectibilitySummaryTest extends TestCase
             ->assertRedirect();
     }
 
-    public function test_closure_metadata_conflicts_and_unproven_legacy_zero_are_unknown(): void
+    public function test_closure_metadata_does_not_replace_the_financial_position(): void
     {
         $conflict = $this->loan($this->mitra('Konflik', false), 'macet', '10.00', true);
         $conflict->closures()->firstOrFail()->update(['settlement_snapshot' => ['lunas_total_saldo' => '11.00']]);
@@ -133,7 +134,7 @@ class PumkCollectibilitySummaryTest extends TestCase
             'lunas_total_saldo' => null, 'source_updated_at' => '2026-08-01 00:00:00',
             'baseline_sumber' => [
                 'sisa_pokok' => '-100.00', 'sisa_bunga' => '0.00',
-                'total_pokok_masuk' => '0.00', 'total_bunga_masuk' => '0.00', 'total_denda_masuk' => '0.00',
+                'total_pokok_masuk' => '200.00', 'total_bunga_masuk' => '0.00', 'total_denda_masuk' => '0.00',
                 'bulan_tunggakan' => 0, 'nilai_tunggakan' => '0.00', 'kolektibilitas' => 'diragukan',
             ],
         ]);
@@ -149,21 +150,17 @@ class PumkCollectibilitySummaryTest extends TestCase
 
         $result = app(PumkCollectibilitySummaryService::class)->summarize([]);
 
-        $this->assertSame(4, $result['unknown_balances']);
-        $this->assertSame('-100.00', $result['nominal']['diragukan']);
+        $this->assertSame(1, $result['unknown_balances']);
+        $this->assertSame('110.00', $result['nominal']['macet']);
         $this->assertSame('30.00', $result['nominal']['kurang_lancar']);
-        $this->assertSame('300.00', $result['nominal']['lancar']);
-        $this->assertSame('230.00', $result['subtotal']);
+        $this->assertSame('200.00', $result['nominal']['lancar']);
+        $this->assertSame('340.00', $result['subtotal']);
         $selected = app(PumkCollectibilitySummaryService::class)->summarize([], 'macet');
-        $this->assertSame(2, $selected['unknown_balances']);
-        $this->assertSame('0.00', $selected['nominal']['macet']);
+        $this->assertSame(0, $selected['unknown_balances']);
+        $this->assertSame('110.00', $selected['nominal']['macet']);
         $this->actingAs($this->admin(), 'pumk');
         $this->get(route('pumk-admin.mitra.index', ['kolektibilitas' => 'macet']))
-            ->assertOk()->assertSee('Subtotal Sisa Macet:')->assertSee('Rp0')
-            ->assertSee('2 pinjaman pada kategori ini memiliki saldo belum tersedia.')
-            ->assertDontSee('4 pinjaman memiliki saldo belum tersedia');
-        $this->get(route('pumk-admin.mitra.index', ['kolektibilitas' => 'diragukan']))
-            ->assertOk()->assertSee('Total Sisa Diragukan:')->assertSee('-Rp100')
+            ->assertOk()->assertSee('Total Sisa Macet:')->assertSee('Rp110')
             ->assertDontSee('pinjaman pada kategori ini memiliki saldo belum tersedia.');
     }
 
@@ -192,7 +189,7 @@ class PumkCollectibilitySummaryTest extends TestCase
         $this->assertSame(1, PumkAngsuran::where('pinjaman_id', $loan->id)->count());
     }
 
-    public function test_last_proven_category_at_closure_is_used_if_history_changes_after_closure(): void
+    public function test_later_classification_history_does_not_replace_the_official_formula(): void
     {
         $loan = $this->loan($this->mitra('Mitra Histori', false), 'lancar', '100.00', true);
         foreach (['2026-09-01' => 'macet', '2026-10-01' => 'lancar'] as $date => $value) {
@@ -207,8 +204,8 @@ class PumkCollectibilitySummaryTest extends TestCase
 
         $result = app(PumkCollectibilitySummaryService::class)->summarize([]);
 
-        $this->assertSame('100.00', $result['nominal']['macet']);
-        $this->assertSame('0.00', $result['nominal']['lancar']);
+        $this->assertSame('0.00', $result['nominal']['macet']);
+        $this->assertSame('100.00', $result['nominal']['lancar']);
         $this->assertSame('lancar', $loan->fresh()->kolektibilitas);
     }
 
@@ -325,24 +322,41 @@ class PumkCollectibilitySummaryTest extends TestCase
             ->assertViewHas('mitraList', fn ($list) => $list->first()->pinjaman->first()->id === $matching->id);
     }
 
-    public function test_closure_snapshot_preserves_original_category_even_if_current_field_changes(): void
+    public function test_closure_snapshot_remains_history_but_does_not_drive_the_recap_category(): void
     {
         $loan = $this->loan($this->mitra('Kategori Penutupan', false), 'lancar', '-193232.00', true);
         $loan->closures()->firstOrFail()->update([
             'settlement_snapshot' => ['lunas_total_saldo' => '-193232.00', 'kolektibilitas' => 'macet'],
         ]);
         $result = app(PumkCollectibilitySummaryService::class)->summarize([]);
-        $this->assertSame('-193232.00', $result['nominal']['macet']);
-        $this->assertSame('0.00', $result['nominal']['lancar']);
+        $this->assertSame('0.00', $result['nominal']['macet']);
+        $this->assertSame('-193232.00', $result['nominal']['lancar']);
         $this->actingAs($this->admin(), 'pumk')
-            ->get(route('pumk-admin.mitra.index', ['status' => 'lunas', 'kolektibilitas' => 'macet']))
-            ->assertOk()->assertSee('Kategori Penutupan')->assertSee('Total Sisa Macet:')
+            ->get(route('pumk-admin.mitra.index', ['status' => 'lunas', 'kolektibilitas' => 'lancar']))
+            ->assertOk()->assertSee('Kategori Penutupan')->assertSee('Total Sisa Lancar:')
             ->assertViewHas('mitraList', fn ($list) => $list->first()->pinjaman->first()->id === $loan->id);
 
         $loan->closures()->firstOrFail()->update([
             'settlement_snapshot' => ['lunas_total_saldo' => '-193232.00', 'kolektibilitas' => null],
         ]);
-        $this->assertSame('-193232.00', app(PumkCollectibilitySummaryService::class)->summarize([])['nominal']['belum_dinilai']);
+        $this->assertSame('-193232.00', app(PumkCollectibilitySummaryService::class)->summarize([])['nominal']['lancar']);
+    }
+
+    public function test_recap_sums_raw_source_aw_before_rounding_category_subtotal(): void
+    {
+        foreach (['Presisi Satu', 'Presisi Dua'] as $name) {
+            $loan = $this->loan($this->mitra($name), 'lancar', '0.23');
+            $baseline = $loan->baseline_sumber;
+            $baseline['formula_sumber']['sisa_pokok_raw'] = '0.22383972';
+            $baseline['formula_sumber']['total_sisa_raw'] = '0.22383972';
+            $loan->update(['baseline_sumber' => $baseline]);
+        }
+
+        $summary = app(PumkCollectibilitySummaryService::class);
+        $this->assertSame('0.22', $summary->positionForLoan(PumkPinjaman::query()->firstOrFail())['balance']);
+        $result = $summary->summarize([]);
+        $this->assertSame('0.45', $result['nominal']['lancar']);
+        $this->assertSame('0.45', $result['subtotal']);
     }
 
     private function admin(): User
@@ -359,7 +373,8 @@ class PumkCollectibilitySummaryTest extends TestCase
 
     private function loan(PumkMitra $mitra, ?string $quality, string $balance, bool $closed = false): PumkPinjaman
     {
-        $principal = bccomp($balance, '0.00', 2) > 0 ? $balance : '0.00';
+        $principal = bccomp($balance, '0.00', 2) < 0 ? bcsub('0.00', $balance, 2) : $balance;
+        $paid = bcsub($principal, $balance, 2);
         $monthly = match ($quality) {
             'macet' => bcdiv($principal, '15', 2),
             'diragukan' => bcdiv($principal, '7', 2),
@@ -384,16 +399,25 @@ class PumkCollectibilitySummaryTest extends TestCase
                     'lancar' => 0, default => null,
                 },
                 'nilai_tunggakan' => '0.00', 'kolektibilitas' => $quality,
-                'total_pokok_masuk' => '0.00', 'total_bunga_masuk' => '0.00',
+                'total_pokok_masuk' => $paid, 'total_bunga_masuk' => '0.00',
                 'total_denda_masuk' => '0.00',
                 'formula_sumber' => $quality === null ? null : [
                     'mulai_angsuran' => '2025-01-01', 'angsuran_bulanan' => $monthly,
                     'total_kewajiban' => $principal, 'tanggal_acuan' => '2026-07-31',
+                    'pokok_masuk_raw' => $paid, 'bunga_masuk_raw' => '0.00',
+                    'sisa_pokok_raw' => $balance, 'sisa_bunga_raw' => '0.00',
+                    'total_sisa_raw' => $balance,
                 ],
             ],
             'lunas_at' => $closed ? '2026-09-15 10:00:00' : null,
             'lunas_total_saldo' => $closed ? $balance : null,
         ]);
+        if (bccomp($paid, '0.00', 2) !== 0) {
+            PumkSaldoAwal::create([
+                'pinjaman_id' => $loan->id, 'cutoff_date' => '2025-12-31',
+                'pokok_masuk' => $paid, 'bunga_masuk' => '0.00', 'denda' => '0.00',
+            ]);
+        }
         if ($closed) {
             PumkLoanClosure::create([
                 'pinjaman_id' => $loan->id, 'closed_at' => $loan->lunas_at,

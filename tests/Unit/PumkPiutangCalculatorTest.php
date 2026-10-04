@@ -296,6 +296,133 @@ class PumkPiutangCalculatorTest extends TestCase
         $this->assertSame('kurang_lancar', $result['kolektibilitas']);
     }
 
+    public function test_official_date_does_not_follow_the_computer_clock_and_payment_changes_category(): void
+    {
+        $loan = new PumkPinjaman([
+            'pinjaman_pokok' => '25000000.00', 'pinjaman_bunga' => '2250000.00',
+            'source_updated_at' => '2026-07-31 23:59:59',
+            'baseline_sumber' => [
+                'sisa_pokok' => '17706900.00', 'sisa_bunga' => '1587500.00',
+                'total_pokok_masuk' => '7293100.00', 'total_bunga_masuk' => '662500.00',
+                'formula_sumber' => [
+                    'tanggal_acuan' => '2026-07-31', 'mulai_angsuran' => '2025-01-01',
+                    'angsuran_bulanan' => '756950', 'total_kewajiban' => '27250000',
+                    'pokok_masuk_raw' => '7293100', 'bunga_masuk_raw' => '662500',
+                    'sisa_pokok_raw' => '17706900', 'sisa_bunga_raw' => '1587500',
+                    'total_sisa_raw' => '19294400',
+                ],
+            ],
+        ]);
+        $loan->setRelation('saldoAwal', new PumkSaldoAwal([
+            'cutoff_date' => '2025-12-31', 'pokok_masuk' => '7293100.00',
+            'bunga_masuk' => '662500.00', 'denda' => '0.00',
+        ]));
+        $loan->setRelation('angsuran', new Collection);
+        $calculator = app(PiutangCalculator::class);
+
+        foreach (['2026-07-31', '2026-10-01', '2026-10-03'] as $clock) {
+            CarbonImmutable::setTestNow($clock);
+            $result = $calculator->hitungUntukPinjaman($loan);
+            $this->assertSame('2026-07-31', $result['tanggal_acuan']);
+            $this->assertSame(19, $result['jumlah_jatuh_tempo']);
+            $this->assertSame(8, $result['bulan_tunggakan']);
+            $this->assertSame('diragukan', $result['kolektibilitas']);
+        }
+        CarbonImmutable::setTestNow();
+
+        $later = $calculator->hitungUntukPinjaman($loan, CarbonImmutable::parse('2026-10-01'));
+        $this->assertSame(22, $later['jumlah_jatuh_tempo']);
+        $this->assertSame(11, $later['bulan_tunggakan']);
+        $this->assertSame('macet', $later['kolektibilitas']);
+
+        $loan->setRelation('angsuran', new Collection([
+            new PumkAngsuran([
+                'periode' => '2026-08-01', 'pokok' => '1500000.00',
+                'bunga' => '0.00', 'denda' => '0.00',
+            ]),
+        ]));
+        $paid = $calculator->hitungUntukPinjaman($loan);
+        $this->assertSame('2026-07-31', $paid['tanggal_acuan']);
+        $this->assertSame(6, $paid['bulan_tunggakan']);
+        $this->assertSame('kurang_lancar', $paid['kolektibilitas']);
+        $this->assertSame('17794400.00', $paid['total_sisa']);
+    }
+
+    public function test_source_total_keeps_sub_cent_precision_until_display(): void
+    {
+        $loan = new PumkPinjaman([
+            'pinjaman_pokok' => '15000000.00', 'pinjaman_bunga' => '1427846.22',
+            'source_updated_at' => '2026-07-31 23:59:59',
+            'baseline_sumber' => [
+                'sisa_pokok' => '1998.00', 'sisa_bunga' => '-1997.77',
+                'total_pokok_masuk' => '14998002.00', 'total_bunga_masuk' => '1429844.00',
+                'formula_sumber' => [
+                    'tanggal_acuan' => '2026-07-31', 'mulai_angsuran' => '2022-01-01',
+                    'angsuran_bulanan' => '456329.06177334', 'total_kewajiban' => '16427846.22',
+                    'pokok_masuk_raw' => '14998002', 'bunga_masuk_raw' => '1429844',
+                    'sisa_pokok_raw' => '1998', 'sisa_bunga_raw' => '-1997.77616',
+                    'total_sisa_raw' => '0.22383972',
+                ],
+            ],
+        ]);
+        $loan->setRelation('saldoAwal', new PumkSaldoAwal([
+            'cutoff_date' => '2025-12-31', 'pokok_masuk' => '14998002.00',
+            'bunga_masuk' => '1429844.00', 'denda' => '0.00',
+        ]));
+        $loan->setRelation('angsuran', new Collection);
+
+        $result = app(PiutangCalculator::class)->hitungUntukPinjaman($loan);
+        $this->assertSame('0.22383972', $result['total_sisa_raw']);
+        $this->assertSame('-1997.77616', $result['sisa_bunga_raw']);
+        $this->assertSame('-1997.78', $result['sisa_bunga']);
+        $this->assertSame('0.22', $result['total_sisa']);
+    }
+
+    public function test_source_139_payment_changes_aw_without_forcing_a_category_change(): void
+    {
+        // Independent Reg4 cells at C5: AG 48,472,200; AK 1,346,450;
+        // AN 34,300,000; AP 91; AR 10; AW 14,172,200.
+        $loan = new PumkPinjaman([
+            'pinjaman_pokok' => '44472200.00', 'pinjaman_bunga' => '4000000.00',
+            'source_updated_at' => '2026-07-31 23:59:59',
+            'baseline_sumber' => [
+                'sisa_pokok' => '12996800.00', 'sisa_bunga' => '1175400.00',
+                'total_pokok_masuk' => '31475400.00', 'total_bunga_masuk' => '2824600.00',
+                'formula_sumber' => [
+                    'tanggal_acuan' => '2026-07-31', 'mulai_angsuran' => '2019-01-02',
+                    'angsuran_bulanan' => '1346450', 'total_kewajiban' => '48472200',
+                    'pokok_masuk_raw' => '31475400', 'bunga_masuk_raw' => '2824600',
+                    'sisa_pokok_raw' => '12996800', 'sisa_bunga_raw' => '1175400',
+                    'total_sisa_raw' => '14172200',
+                ],
+            ],
+        ]);
+        $loan->setRelation('saldoAwal', new PumkSaldoAwal([
+            'cutoff_date' => '2025-12-31', 'pokok_masuk' => '31475400.00',
+            'bunga_masuk' => '2824600.00', 'denda' => '0.00',
+        ]));
+        $loan->setRelation('angsuran', new Collection);
+
+        $calculator = app(PiutangCalculator::class);
+        $source = $calculator->hitungUntukPinjaman($loan);
+        $this->assertSame(91, $source['jumlah_jatuh_tempo']);
+        $this->assertSame(10, $source['bulan_tunggakan']);
+        $this->assertSame('macet', $source['kolektibilitas']);
+        $this->assertSame('14172200.00', $source['total_sisa']);
+
+        $loan->setRelation('angsuran', new Collection([
+            new PumkAngsuran([
+                'periode' => '2026-08-01', 'pokok' => '459400.00',
+                'bunga' => '40600.00', 'denda' => '0.00',
+            ]),
+        ]));
+        $paid = $calculator->hitungUntukPinjaman($loan);
+        $this->assertSame('2026-07-31', $paid['tanggal_acuan']);
+        $this->assertSame(10, $paid['bulan_tunggakan']);
+        $this->assertSame('macet', $paid['kolektibilitas']);
+        $this->assertSame('13672200.00', $paid['total_sisa']);
+    }
+
     private function pinjaman(array $overrides): PumkPinjaman
     {
         $mitra = PumkMitra::create([
