@@ -1,0 +1,19 @@
+@push('head')
+    @if(in_array($dashboardType, ['tjsl', 'bri'], true))
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    >
+    @endif
+    <style>
+        @include('pages.monitoring.styles.shared')
+        @include('pages.monitoring.styles.tjsl')
+        @include('pages.monitoring.styles.pumk')
+        @include('pages.monitoring.styles.bri')
+        @include('pages.monitoring.styles.adjustments')
+        @include('pages.monitoring.styles.faq')
+        @include('pages.monitoring.styles.responsive')
+    </style>
+@endpush
