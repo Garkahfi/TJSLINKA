@@ -18,11 +18,11 @@ class PumkLoanSettlementService
     ) {}
 
     /** @return array<string, mixed> */
-    public function preview(PumkPinjaman $loan, ?CarbonImmutable $at = null): array
+    public function preview(PumkPinjaman $loan, ?CarbonImmutable $at = null, ?array $card = null): array
     {
         // Pelunasan memakai total akhir yang sama dengan Kartu Piutang saat ini.
         // Resolver posisi historis tidak menjadi dasar keputusan pelunasan manual.
-        $card = $this->calculator->hitungUntukPinjaman($loan, $at);
+        $card ??= $this->calculator->hitungUntukPinjaman($loan, $at);
         $baseline = $loan->baseline_sumber ?? [
             'sisa_pokok' => $loan->sisa_pokok, 'sisa_bunga' => $loan->sisa_bunga,
         ];

@@ -109,6 +109,57 @@ class PumkCollectibilitySummaryService
         return $ids;
     }
 
+    /**
+     * The category-filtered list needs matching IDs and a footer for the same
+     * scope. Calculate each loan only once during this read-only operation.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array{ids:list<int>,summary:array{nominal:array<string,string>,subtotal:string,unknown_balances:int,cache_differences:int,status_flag_mismatches:int}}
+     */
+    public function matchingLoanIdsWithSummary(array $filters, string $category): array
+    {
+        if (! in_array($category, self::CATEGORIES, true)) {
+            throw new InvalidArgumentException('Kategori kolektibilitas tidak dikenal.');
+        }
+
+        $ids = [];
+        $amounts = array_fill_keys(self::CATEGORIES, '0.00');
+        $unknownBalances = 0;
+        $cacheDifferences = 0;
+        $this->recapScope($this->ownerScope($filters))
+            ->with(['saldoAwal', 'angsuran'])
+            ->chunkById(200, function ($loans) use ($category, &$ids, &$amounts, &$unknownBalances, &$cacheDifferences): void {
+                foreach ($loans as $loan) {
+                    $position = $this->positionForLoan($loan);
+                    if ($position['category'] !== $category) {
+                        continue;
+                    }
+                    $ids[] = $loan->id;
+                    $amount = $position['balance'];
+                    $cacheDifferences += (int) $position['cache_difference'];
+                    if ($amount === null) {
+                        $unknownBalances++;
+
+                        continue;
+                    }
+                    $amounts[$category] = bcadd($amounts[$category], $position['raw_balance'] ?? $amount, 20);
+                }
+            });
+
+        return [
+            'ids' => $ids,
+            'summary' => [
+                'nominal' => array_map(PumkDecimal::roundCents(...), $amounts),
+                'subtotal' => PumkDecimal::roundCents(array_reduce(
+                    $amounts, fn (string $sum, string $amount): string => bcadd($sum, $amount, 20), '0.00',
+                )),
+                'unknown_balances' => $unknownBalances,
+                'cache_differences' => $cacheDifferences,
+                'status_flag_mismatches' => 0,
+            ],
+        ];
+    }
+
     /** @param array<string, mixed> $filters */
     private function ownerScope(array $filters): Builder
     {

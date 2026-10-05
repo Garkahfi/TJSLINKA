@@ -8,10 +8,17 @@ use App\Models\PumkMonitoringReport;
 use App\Models\PumkPinjaman;
 use App\Models\PumkSaldoAwal;
 use App\Models\User;
+use App\Services\Monitoring\PumkClassificationService;
 use App\Services\Monitoring\PumkInternalMonitoringService;
+use App\Services\Monitoring\PumkInternalPositionService;
+use App\Services\Monitoring\PumkInternalTimeline;
+use App\Services\Monitoring\PumkInternalTrendBuilder;
 use App\Services\Monitoring\PumkMonitoringCaptureService;
+use App\Services\Pumk\PiutangCalculator;
+use App\Services\Pumk\PumkLoanBalanceResolver;
 use App\Services\Pumk\PumkLoanSettlementService;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -19,6 +26,48 @@ use Tests\TestCase;
 class PumkInternalMonitoringYearTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_trend_reuses_position_only_for_the_identical_report_date(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-05 12:00:00', 'Asia/Jakarta'));
+        $loan = $this->loan('2025-01-01', 1_000_000, 0);
+        $this->payment($loan, '2026-01-01', 100_000);
+        $this->payment($loan, '2026-09-01', 100_000);
+        $loans = PumkPinjaman::query()->with([
+            'mitra.sektorUsaha', 'mitra.wilayah', 'mitra.classificationHistory',
+            'classificationHistory', 'saldoAwal', 'angsuran', 'closures',
+        ])->get();
+        $reports = PumkMonitoringReport::query()->with('positions')->get();
+        $timeline = app(PumkInternalTimeline::class);
+        $today = CarbonImmutable::parse('2026-10-05', 'Asia/Jakarta');
+        $evidence = $timeline->evidenceDates($loans, $reports, $today);
+        $asOf = $evidence->filter(fn (CarbonImmutable $date): bool => $date->year === 2026)
+            ->sortBy(fn (CarbonImmutable $date): int => $date->getTimestamp())->last();
+        $this->assertNotNull($asOf);
+
+        $counter = new class(app(PumkLoanBalanceResolver::class), app(PumkClassificationService::class), app(PiutangCalculator::class), $timeline) extends PumkInternalPositionService
+        {
+            public int $calls = 0;
+
+            public function positionsAt(EloquentCollection $loans, CarbonImmutable $asOf, EloquentCollection $reports): array
+            {
+                $this->calls++;
+
+                return parent::positionsAt($loans, $asOf, $reports);
+            }
+        };
+        $positions = $counter->positionsAt($loans, $asOf, $reports);
+        $trend = new PumkInternalTrendBuilder($counter);
+        $counter->calls = 0;
+        $old = $trend->trend(2026, $today, $loans, $reports, $evidence);
+        $oldCalls = $counter->calls;
+        $counter->calls = 0;
+        $new = $trend->trend(2026, $today, $loans, $reports, $evidence, $asOf, $positions);
+
+        $this->assertSame($old, $new);
+        $this->assertSame($oldCalls - 1, $counter->calls);
+        $this->assertGreaterThan(1, $oldCalls);
+    }
 
     protected function tearDown(): void
     {

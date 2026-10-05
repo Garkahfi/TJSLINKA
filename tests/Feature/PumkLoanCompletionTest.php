@@ -7,12 +7,30 @@ use App\Models\PumkAngsuran;
 use App\Models\PumkMitra;
 use App\Models\PumkPinjaman;
 use App\Models\User;
+use App\Services\Pumk\KartuPiutangService;
+use App\Services\Pumk\PumkLoanSettlementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class PumkLoanCompletionTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_preview_reuses_the_same_current_card_result_and_next_read_sees_a_new_payment(): void
+    {
+        [$admin, , $loan] = $this->loan(100_000, 0);
+        $settlement = app(PumkLoanSettlementService::class);
+        $card = app(KartuPiutangService::class)->buat($loan);
+        $before = $settlement->preview($loan);
+        $this->assertSame($before, $settlement->preview($loan, card: $card['calculation']));
+
+        $this->payment($loan, $admin, 10_000);
+        $loan = $loan->fresh();
+        $updatedCard = app(KartuPiutangService::class)->buat($loan);
+        $after = $settlement->preview($loan);
+        $this->assertSame($after, $settlement->preview($loan, card: $updatedCard['calculation']));
+        $this->assertNotSame($before['total'], $after['total']);
+    }
 
     public function test_active_loan_with_remaining_balance_cannot_be_marked_paid(): void
     {

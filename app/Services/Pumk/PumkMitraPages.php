@@ -24,9 +24,10 @@ class PumkMitraPages
         ]);
         $statusFilter = $filters['status'] ?? 'aktif';
         $selectedCollectibility = $filters['kolektibilitas'] ?? null;
-        $matchingLoanIds = $selectedCollectibility !== null
-            ? $collectibilitySummary->matchingLoanIds($filters, $selectedCollectibility)
+        $selectedRecap = $selectedCollectibility !== null
+            ? $collectibilitySummary->matchingLoanIdsWithSummary($filters, $selectedCollectibility)
             : null;
+        $matchingLoanIds = $selectedRecap['ids'] ?? null;
 
         $mitraQuery = PumkMitra::query()
             ->withExists('pinjamanAktif')
@@ -70,9 +71,7 @@ class PumkMitraPages
 
         return view('pumk-admin.mitra.index', [
             'mitraList' => $mitraList,
-            'collectibilitySummary' => $selectedCollectibility !== null
-                ? $collectibilitySummary->summarize($filters, $selectedCollectibility)
-                : null,
+            'collectibilitySummary' => $selectedRecap['summary'] ?? null,
             'selectedCollectibility' => $selectedCollectibility,
             'wilayahList' => PumkWilayah::query()->where('is_active', true)->orderBy('nama')->get(['id', 'nama']),
             'sektorList' => PumkSektorUsaha::query()->where('is_active', true)->orderBy('nama')->get(['id', 'nama']),
@@ -111,7 +110,7 @@ class PumkMitraPages
         $kartu = $pinjaman ? $kartuPiutang->buat($pinjaman, tahun: $tahun) : null;
         $calculation = $kartu['calculation'] ?? null;
         $settlementPreview = $pinjaman?->status === PumkPinjaman::STATUS_AKTIF && $pinjaman->is_active
-            ? $settlement->preview($pinjaman)
+            ? $settlement->preview($pinjaman, card: $calculation)
             : null;
         $pinjamanList = $mitra->pinjaman;
 

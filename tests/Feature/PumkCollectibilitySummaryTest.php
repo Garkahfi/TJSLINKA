@@ -22,6 +22,30 @@ class PumkCollectibilitySummaryTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_single_pass_category_result_matches_existing_ids_and_footer_for_multi_loan_and_archive(): void
+    {
+        $first = $this->mitra('Mitra Multi');
+        $this->loan($first, 'lancar', '100.23');
+        $this->loan($first, 'macet', '200.00');
+        $this->loan($this->mitra('Mitra Arsip', false), 'lancar', '-25.00', true);
+        $this->loan($this->mitra('Mitra Tanpa Kategori'), null, '10.00');
+        $summary = app(PumkCollectibilitySummaryService::class);
+
+        foreach (['lancar', 'macet', 'belum_dinilai'] as $category) {
+            foreach ([[], ['q' => 'Mitra Multi']] as $filters) {
+                $combined = $summary->matchingLoanIdsWithSummary($filters, $category);
+                $this->assertSame($summary->matchingLoanIds($filters, $category), $combined['ids']);
+                $this->assertSame($summary->summarize($filters, $category), $combined['summary']);
+            }
+        }
+
+        $this->loan($first, 'lancar', '1.00');
+        $this->assertSame(
+            $summary->summarize(['q' => 'Mitra Multi'], 'lancar'),
+            $summary->matchingLoanIdsWithSummary(['q' => 'Mitra Multi'], 'lancar')['summary'],
+        );
+    }
+
     public function test_exact_signed_amounts_count_each_loan_once_across_active_and_archive(): void
     {
         $a = $this->mitra('Mitra A');
