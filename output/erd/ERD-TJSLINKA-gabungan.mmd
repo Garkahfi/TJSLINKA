@@ -1,0 +1,183 @@
+erDiagram
+    users {
+        bigint id PK
+        varchar role
+    }
+
+    pillars {
+        bigint id PK
+        varchar name
+    }
+    programs {
+        bigint id PK
+        bigint pillar_id FK
+        bigint created_by FK
+        varchar status
+    }
+    program_documents {
+        bigint id PK
+        bigint program_id FK
+    }
+    program_photos {
+        bigint id PK
+        bigint program_id FK
+    }
+    program_tujuan {
+        bigint id PK
+        bigint program_id FK
+    }
+    bantuan_csr {
+        bigint id PK
+        bigint program_id FK
+        bigint pillar_id FK
+        bigint created_by FK
+    }
+    bantuan_csr_details {
+        bigint id PK
+        bigint bantuan_csr_id FK
+    }
+    bantuan_csr_detail_photos {
+        bigint id PK
+        bigint bantuan_csr_detail_id FK
+    }
+    bantuan_csr_documents {
+        bigint id PK
+        bigint bantuan_csr_id FK
+    }
+    bantuan_csr_photos {
+        bigint id PK
+        bigint bantuan_csr_id FK
+    }
+    bantuan_csr_targets {
+        bigint id PK
+        bigint bantuan_csr_id FK
+    }
+    program_eksternal {
+        bigint id PK
+        bigint pillar_id FK
+        bigint created_by FK
+    }
+
+    pumk_wilayah {
+        bigint id PK
+        varchar nama
+    }
+    pumk_sektor_usaha {
+        bigint id PK
+        varchar nama
+    }
+    pumk_mitra {
+        bigint id PK
+        bigint wilayah_id FK
+        bigint sektor_usaha_id FK
+        bigint created_by FK
+    }
+    pumk_pinjaman {
+        bigint id PK
+        bigint mitra_id FK
+        decimal sisa_pokok
+        decimal sisa_bunga
+    }
+    pumk_saldo_awal {
+        bigint id PK
+        bigint pinjaman_id FK
+        bigint batch_id FK
+    }
+    pumk_angsuran {
+        bigint id PK
+        bigint pinjaman_id FK
+        bigint batch_id FK
+    }
+    pumk_pinjaman_dokumen {
+        bigint id PK
+        bigint pinjaman_id FK
+    }
+    pumk_loan_closures {
+        bigint id PK
+        bigint pinjaman_id FK
+    }
+    pumk_classification_history {
+        bigint id PK
+        bigint mitra_id FK
+        bigint pinjaman_id FK
+    }
+    pumk_import_batches {
+        bigint id PK
+        bigint imported_by FK
+    }
+    pumk_import_rows {
+        bigint id PK
+        bigint batch_id FK
+    }
+    pumk_monitoring_reports {
+        bigint id PK
+        date as_of_date
+    }
+    pumk_monitoring_positions {
+        bigint id PK
+        bigint report_id FK
+        bigint pinjaman_id FK
+        bigint mitra_id FK
+    }
+
+    pumk_bri_mitra {
+        bigint id PK
+        varchar nama_mitra
+    }
+    pumk_bri_fasilitas {
+        bigint id PK
+        bigint mitra_id FK
+    }
+    pumk_bri_snapshot_bulanan {
+        bigint id PK
+        bigint mitra_id FK
+        bigint fasilitas_id FK
+        tinyint bulan
+        smallint tahun
+    }
+    pumk_bri_identity_reviews {
+        bigint id PK
+        bigint resolved_mitra_id FK
+        bigint resolved_fasilitas_id FK
+    }
+
+    users ||--o{ programs : created_by
+    users ||--o{ bantuan_csr : created_by
+    users ||--o{ program_eksternal : created_by
+    users o|--o{ pumk_mitra : created_by
+    users o|--o{ pumk_import_batches : imported_by
+
+    pillars ||--o{ programs : pillar_id
+    pillars o|--o{ bantuan_csr : pillar_id
+    pillars o|--o{ program_eksternal : pillar_id
+    programs o|--o{ bantuan_csr : program_id
+    programs ||--o{ program_documents : program_id
+    programs ||--o{ program_photos : program_id
+    programs ||--o{ program_tujuan : program_id
+    bantuan_csr ||--o{ bantuan_csr_details : bantuan_csr_id
+    bantuan_csr_details ||--o{ bantuan_csr_detail_photos : bantuan_csr_detail_id
+    bantuan_csr ||--o{ bantuan_csr_documents : bantuan_csr_id
+    bantuan_csr ||--o{ bantuan_csr_photos : bantuan_csr_id
+    bantuan_csr ||--o{ bantuan_csr_targets : bantuan_csr_id
+
+    pumk_wilayah o|--o{ pumk_mitra : wilayah_id
+    pumk_sektor_usaha o|--o{ pumk_mitra : sektor_usaha_id
+    pumk_mitra ||--o{ pumk_pinjaman : mitra_id
+    pumk_pinjaman ||--o| pumk_saldo_awal : pinjaman_id
+    pumk_pinjaman ||--o{ pumk_angsuran : pinjaman_id
+    pumk_pinjaman ||--o{ pumk_pinjaman_dokumen : pinjaman_id
+    pumk_pinjaman ||--o{ pumk_loan_closures : pinjaman_id
+    pumk_mitra o|--o{ pumk_classification_history : mitra_id
+    pumk_pinjaman o|--o{ pumk_classification_history : pinjaman_id
+    pumk_import_batches ||--o{ pumk_import_rows : batch_id
+    pumk_import_batches o|--o{ pumk_saldo_awal : batch_id
+    pumk_import_batches o|--o{ pumk_angsuran : batch_id
+    pumk_monitoring_reports ||--o{ pumk_monitoring_positions : report_id
+    pumk_pinjaman ||--o{ pumk_monitoring_positions : pinjaman_id
+    pumk_mitra ||--o{ pumk_monitoring_positions : mitra_id
+
+    pumk_bri_mitra ||--o{ pumk_bri_fasilitas : mitra_id
+    pumk_bri_mitra ||--o{ pumk_bri_snapshot_bulanan : mitra_id
+    pumk_bri_fasilitas o|--o{ pumk_bri_snapshot_bulanan : fasilitas_id
+    pumk_bri_mitra o|--o{ pumk_bri_identity_reviews : resolved_mitra_id
+    pumk_bri_fasilitas o|--o{ pumk_bri_identity_reviews : resolved_fasilitas_id

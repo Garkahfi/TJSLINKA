@@ -1,58 +1,44 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# TJSLINKA — Lensa TJSL INKA
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi Laravel untuk Program/Bantuan TJSL serta PUMK internal (kartu piutang) dan monitoring PUMK BRI. Data PUMK internal dan PUMK BRI adalah dua sumber yang berbeda; jangan menggabungkannya hanya karena keduanya muncul pada dashboard.
 
-## About Laravel
+## Serah-terima untuk pengembang berikutnya
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Repositori ini berisi kode, migrasi, pengujian, dan dokumentasi yang dilacak Git. **Database aktif, berkas unggahan, dan rahasia aplikasi tidak ada di GitHub.** Mintalah paket data serta akses yang disetujui dari tim IT; jangan memasukkan dump SQL, dokumen mitra, atau `.env` ke commit.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Kebutuhan pengembangan: PHP 8.3+, Composer, Node.js/npm, dan MySQL untuk data aplikasi. Mulai dari branch `main`:
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```powershell
+git clone https://github.com/Garkahfi/TJSLINKA.git
+cd TJSLINKA
+composer install
+npm ci
+npm run build
+php scripts/init-env.php
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Skrip terakhir hanya membuat `.env` lokal minimal bila belum ada. Minta tim IT mengisi koneksi database dan memberikan `APP_KEY` yang sesuai melalui kanal rahasia. Untuk **salinan database lama yang sudah berisi data terenkripsi**, jangan menjalankan `php artisan key:generate` atau `composer run setup`: skrip setup juga menjalankan migrasi. Pulihkan dump ke database terpisah sesuai arahan IT, lalu tempatkan berkas unggahan pada `storage/app/private` dan `storage/app/public` dengan struktur aslinya. Jangan menjalankan `migrate:fresh` atau `db:wipe` pada salinan data tersebut.
 
-## Contributing
+Setelah konfigurasi dan data tersedia:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```powershell
+php artisan config:clear
+php artisan storage:link
+php artisan serve
+```
 
-## Code of Conduct
+Pengujian otomatis bawaan menggunakan SQLite in-memory sebagaimana diatur dalam `phpunit.xml`; hasilnya **bukan** pengganti UAT aplikasi dan verifikasi data MySQL yang dipulihkan:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```powershell
+php artisan test
+```
 
-## Security Vulnerabilities
+## Peta dokumentasi
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+- [ERD TJSLINKA](ERD-TJSLINKA.md) — tiga modul dan satu diagram gabungan; hanya relasi FK yang benar-benar ada yang digambar.
+- [Panduan UAT](docs/uat-tjslinka.md) — skenario pengujian per peran dan modul.
+- [Pemetaan dan rekonsiliasi piutang PUMK](docs/pumk-piutang-reconciliation.md).
+- [Audit performa](docs/reports/audit-performa-tjslinka.md).
+- [Catatan pelunasan dan arsip PUMK](docs/pumk-settlement-archive-fix.md).
 
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Sebelum mengubah logika saldo atau kolektibilitas, baca dokumen rekonsiliasi dan jalankan tes terkait. Jangan memakai data pribadi nyata untuk pengujian otomatis atau mengunggahnya ke issue/PR.
